@@ -3,13 +3,13 @@ import pandas as pd
 from lxml import etree
 import xml.etree.ElementTree as ET
 import duckdb
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import glob
-from typing import Optional
+from concurrent.futures import ProcessPoolExecutor
+import pyarrow as pa
+import pyarrow.parquet as pq
+from pyparsing import Path
 
 # Helper: parse datastream list element into a dict structure
 def parse_datastream_from_event_xml(filename):
-    
     tree = ET.parse(filename)
     root = tree.getroot()
     # Namespace for XES
@@ -54,12 +54,6 @@ def parse_datastream_from_event_xml(filename):
     return results
     
 
-def process_xes_to_parquet(file):
-    df = parse_datastream_from_event_xml(file)
-    # Save each file's result as a parquet file (or handle as needed)
-    out_file = os.path.splitext(file)[0] + ".parquet"
-    pd.DataFrame(df).to_parquet(out_file)
-
 if __name__ == "__main__":
     # Directory with your .xes files
     xes_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log")
@@ -69,6 +63,27 @@ if __name__ == "__main__":
         if f.endswith('.xes') and f != "MainProcess.xes"
     ]
     print(f"Found {len(xes_files)} .xes files to process.")
+    
+    count = 0
+    num_files = len(xes_files)
+    
+    parquet_dir = os.path.join(xes_directory, "parquet")
+    os.makedirs(parquet_dir, exist_ok=True)
 
-    with ProcessPoolExecutor() as executor:
-        executor.map(process_xes_to_parquet, xes_files)
+    for filename in xes_files:
+        print(f"Processing file {count + 1}/{num_files}: {filename}")
+        try:
+            parquet_file = os.path.join(parquet_dir, Path(filename).stem + ".parquet")
+            if os.path.exists(parquet_file):
+                print(f"Skipping {filename}, Parquet file already exists.")
+                count += 1
+                continue
+            sensor_info = parse_datastream_from_event_xml(filename)
+            table = pa.Table.from_pylist(sensor_info)
+            pq.write_table(table, parquet_file, compression="snappy")
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+        finally:
+            count += 1
+        
+    print("All files processed.")
