@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1rg6wrx" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.12.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="Process_0rkkquf" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0nt176j</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Activity_0k50ubo" name="HBW_2_Unload" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/hbw/unload?resource=hbw_2&amp;slot=hbw_2_automatic_pos&amp;use_nfc=true&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0nt176j</bpmn:incoming>
+      <bpmn:outgoing>Flow_121jjrm</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0bptwe5" name="VGR_2_Pick_Up_And_Transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/vgr/pick_up_and_transport?resource=vgr_2&amp;start=hbw_2_pos&amp;end=dm_2_sink_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_12yjafn</bpmn:incoming>
+      <bpmn:outgoing>Flow_1r4u4e6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_03sxpy1" name="HBW_2_Store_Empty_Bucket" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/hbw/store_empty_bucket?resource=hbw_2&amp;slot=hbw_2_automatic_pos&amp;use_nfc=true&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0v96f2c</bpmn:incoming>
+      <bpmn:outgoing>Flow_1rez96u</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0b2lq75" name="VGR_1_Pick_Up_And_Transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/vgr/pick_up_and_transport?resource=vgr_1&amp;start=dm_2_sink_pos&amp;end=ov_1_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1r4u4e6</bpmn:incoming>
+      <bpmn:outgoing>Flow_0alfzdz</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1t5cta5" name="OV_1_Burn" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/ov/burn?resource=ov_1&amp;size=regular&amp;thickness=thin&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1v0z8fi</bpmn:incoming>
+      <bpmn:outgoing>Flow_070zj0a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1ucgabt" name="WT_1_Pick_Up_And_Transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/wt/pick_up_and_transport?resource=wt_1&amp;start=ov_1_pos&amp;end=mm_1_initial_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0oso04x</bpmn:incoming>
+      <bpmn:outgoing>Flow_0equmul</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1fhuyis" name="MM_1_Mill" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/mm/mill?resource=mm_1&amp;start=mm_1_initial_pos&amp;end=mm_1_initial_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0equmul</bpmn:incoming>
+      <bpmn:outgoing>Flow_1kd3byc</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0urvjzc" name="MM_1_Deburr" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/mm/deburr?resource=mm_1&amp;start=mm_1_initial_pos&amp;end=sm_1_lb_1_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1kd3byc</bpmn:incoming>
+      <bpmn:outgoing>Flow_014927w</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_1kq3m31">
+      <bpmn:incoming>Flow_121jjrm</bpmn:incoming>
+      <bpmn:outgoing>Flow_12yjafn</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0v96f2c</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_0cbzzmw">
+      <bpmn:incoming>Flow_1rez96u</bpmn:incoming>
+      <bpmn:incoming>Flow_0alfzdz</bpmn:incoming>
+      <bpmn:outgoing>Flow_1v0z8fi</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Activity_02f59sh" name="OV_1_Temper">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/ov/temper?resource=ov_1&amp;intensity=ov_1_temper_high</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_070zj0a</bpmn:incoming>
+      <bpmn:outgoing>Flow_0oso04x</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_121jjrm" sourceRef="Activity_0k50ubo" targetRef="Gateway_1kq3m31" />
+    <bpmn:sequenceFlow id="Flow_12yjafn" sourceRef="Gateway_1kq3m31" targetRef="Activity_0bptwe5" />
+    <bpmn:sequenceFlow id="Flow_1r4u4e6" sourceRef="Activity_0bptwe5" targetRef="Activity_0b2lq75" />
+    <bpmn:sequenceFlow id="Flow_0v96f2c" sourceRef="Gateway_1kq3m31" targetRef="Activity_03sxpy1" />
+    <bpmn:sequenceFlow id="Flow_1rez96u" sourceRef="Activity_03sxpy1" targetRef="Gateway_0cbzzmw" />
+    <bpmn:sequenceFlow id="Flow_0alfzdz" sourceRef="Activity_0b2lq75" targetRef="Gateway_0cbzzmw" />
+    <bpmn:sequenceFlow id="Flow_1v0z8fi" sourceRef="Gateway_0cbzzmw" targetRef="Activity_1t5cta5" />
+    <bpmn:sequenceFlow id="Flow_070zj0a" sourceRef="Activity_1t5cta5" targetRef="Activity_02f59sh" />
+    <bpmn:sequenceFlow id="Flow_0oso04x" sourceRef="Activity_02f59sh" targetRef="Activity_1ucgabt" />
+    <bpmn:sequenceFlow id="Flow_0equmul" sourceRef="Activity_1ucgabt" targetRef="Activity_1fhuyis" />
+    <bpmn:sequenceFlow id="Flow_1kd3byc" sourceRef="Activity_1fhuyis" targetRef="Activity_0urvjzc" />
+    <bpmn:sequenceFlow id="Flow_0nt176j" sourceRef="StartEvent_1" targetRef="Activity_0k50ubo" />
+    <bpmn:sequenceFlow id="Flow_014927w" sourceRef="Activity_0urvjzc" targetRef="Activity_11t9on7" />
+    <bpmn:serviceTask id="Activity_11t9on7" name="SM_1_Transport" camunda:modelerTemplate="sm_transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/sm/transport?resource=sm_1&amp;start=sm_1_lb_1_pos&amp;end=sm_1_corner_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_014927w</bpmn:incoming>
+      <bpmn:outgoing>Flow_153oalc</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_153oalc" sourceRef="Activity_11t9on7" targetRef="Activity_166eet8" />
+    <bpmn:sequenceFlow id="Flow_03qnse9" sourceRef="Activity_166eet8" targetRef="Activity_1sgkikv" />
+    <bpmn:serviceTask id="Activity_1sgkikv" name="VGR_1_Pick_Up_And_Transport" camunda:modelerTemplate="vgr_transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/vgr/pick_up_and_transport?resource=vgr_1&amp;start=pm_1_sink_pos&amp;end=hw_1_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_03qnse9</bpmn:incoming>
+      <bpmn:outgoing>Flow_07vbb9d</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0zkxari" name="HW_1_Human_Review" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/hw/human_review?resource=hw_1&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_07vbb9d</bpmn:incoming>
+      <bpmn:outgoing>Flow_0p14xv0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1339urx" name="HBW_1_Get_Empty_Bucket" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/hbw/get_empty_bucket?resource=hbw_1&amp;slot=hbw_1_automatic_pos&amp;use_nfc=true&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0azjyb2</bpmn:incoming>
+      <bpmn:outgoing>Flow_1to0s36</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_10fjkod" name="VGR_1_Pick_Up_And_Transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/vgr/pick_up_and_transport?resource=vgr_1&amp;start=hw_1_pos&amp;end=hbw_1_waiting_platform_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1w73yp3</bpmn:incoming>
+      <bpmn:outgoing>Flow_00mcvn8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_16vonu3" name="VGR_1_Pick_Up_And_Transport" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/vgr/pick_up_and_transport?resource=vgr_1&amp;start=hbw_1_waiting_platform_pos&amp;end=hbw_1_pos&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0h5u3ay</bpmn:incoming>
+      <bpmn:outgoing>Flow_0mcw8vq</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1dhvgkn" name="HBW_1_Store" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/hbw/store?resource=hbw_1&amp;slot=hbw_1_automatic_pos&amp;use_nfc=true&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0mcw8vq</bpmn:incoming>
+      <bpmn:outgoing>Flow_1qcps8a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:eventBasedGateway id="Gateway_1i06noy">
+      <bpmn:incoming>Flow_0p14xv0</bpmn:incoming>
+      <bpmn:outgoing>Flow_11sf9yf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0pckwjg</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_1lf9qlc" name="Human_Worker_Pressed_Green_Button">
+      <bpmn:incoming>Flow_11sf9yf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1bkpeuf</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1bmtpuk" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_0d3dd9s" name="Human_Worker_Pressed_Red_Button">
+      <bpmn:incoming>Flow_0pckwjg</bpmn:incoming>
+      <bpmn:outgoing>Flow_11j6ng1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_0m77xsp" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Gateway_1u6r187">
+      <bpmn:incoming>Flow_1bkpeuf</bpmn:incoming>
+      <bpmn:incoming>Flow_11j6ng1</bpmn:incoming>
+      <bpmn:outgoing>Flow_12jnk1j</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_04wzohu">
+      <bpmn:incoming>Flow_12jnk1j</bpmn:incoming>
+      <bpmn:outgoing>Flow_0azjyb2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1w73yp3</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:parallelGateway id="Gateway_1uzhjuk">
+      <bpmn:incoming>Flow_1to0s36</bpmn:incoming>
+      <bpmn:incoming>Flow_00mcvn8</bpmn:incoming>
+      <bpmn:outgoing>Flow_0h5u3ay</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="Event_1971u1u">
+      <bpmn:incoming>Flow_1qcps8a</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0p14xv0" sourceRef="Activity_0zkxari" targetRef="Gateway_1i06noy" />
+    <bpmn:sequenceFlow id="Flow_0azjyb2" sourceRef="Gateway_04wzohu" targetRef="Activity_1339urx" />
+    <bpmn:sequenceFlow id="Flow_1to0s36" sourceRef="Activity_1339urx" targetRef="Gateway_1uzhjuk" />
+    <bpmn:sequenceFlow id="Flow_1w73yp3" sourceRef="Gateway_04wzohu" targetRef="Activity_10fjkod" />
+    <bpmn:sequenceFlow id="Flow_00mcvn8" sourceRef="Activity_10fjkod" targetRef="Gateway_1uzhjuk" />
+    <bpmn:sequenceFlow id="Flow_0h5u3ay" sourceRef="Gateway_1uzhjuk" targetRef="Activity_16vonu3" />
+    <bpmn:sequenceFlow id="Flow_0mcw8vq" sourceRef="Activity_16vonu3" targetRef="Activity_1dhvgkn" />
+    <bpmn:sequenceFlow id="Flow_1qcps8a" sourceRef="Activity_1dhvgkn" targetRef="Event_1971u1u" />
+    <bpmn:sequenceFlow id="Flow_11sf9yf" sourceRef="Gateway_1i06noy" targetRef="Event_1lf9qlc" />
+    <bpmn:sequenceFlow id="Flow_0pckwjg" sourceRef="Gateway_1i06noy" targetRef="Event_0d3dd9s" />
+    <bpmn:sequenceFlow id="Flow_1bkpeuf" sourceRef="Event_1lf9qlc" targetRef="Gateway_1u6r187" />
+    <bpmn:sequenceFlow id="Flow_11j6ng1" sourceRef="Event_0d3dd9s" targetRef="Gateway_1u6r187" />
+    <bpmn:sequenceFlow id="Flow_12jnk1j" sourceRef="Gateway_1u6r187" targetRef="Gateway_04wzohu" />
+    <bpmn:sequenceFlow id="Flow_07vbb9d" sourceRef="Activity_1sgkikv" targetRef="Activity_0zkxari" />
+    <bpmn:serviceTask id="Activity_166eet8" name="PM_1_Punch_Ribbing" camunda:modelerTemplate="pm_ribbings" camunda:modelerTemplateVersion="1" camunda:asyncBefore="true" camunda:asyncAfter="true" camunda:exclusive="false">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">http://136.199.130.208:5000/pm/punch_ribbing?resource=pm_1&amp;start=sm_1_corner_pos&amp;end=pm_1_sink_pos&amp;quantity=6&amp;business_key=${execution.processBusinessKey}</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_153oalc</bpmn:incoming>
+      <bpmn:outgoing>Flow_03qnse9</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0rkkquf">
+      <bpmndi:BPMNEdge id="Flow_07vbb9d_di" bpmnElement="Flow_07vbb9d">
+        <di:waypoint x="2260" y="117" />
+        <di:waypoint x="2330" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12jnk1j_di" bpmnElement="Flow_12jnk1j">
+        <di:waypoint x="2735" y="117" />
+        <di:waypoint x="2795" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11j6ng1_di" bpmnElement="Flow_11j6ng1">
+        <di:waypoint x="2628" y="230" />
+        <di:waypoint x="2710" y="230" />
+        <di:waypoint x="2710" y="142" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1bkpeuf_di" bpmnElement="Flow_1bkpeuf">
+        <di:waypoint x="2628" y="117" />
+        <di:waypoint x="2685" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0pckwjg_di" bpmnElement="Flow_0pckwjg">
+        <di:waypoint x="2510" y="142" />
+        <di:waypoint x="2510" y="230" />
+        <di:waypoint x="2592" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11sf9yf_di" bpmnElement="Flow_11sf9yf">
+        <di:waypoint x="2535" y="117" />
+        <di:waypoint x="2592" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1qcps8a_di" bpmnElement="Flow_1qcps8a">
+        <di:waypoint x="3420" y="117" />
+        <di:waypoint x="3482" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0mcw8vq_di" bpmnElement="Flow_0mcw8vq">
+        <di:waypoint x="3260" y="117" />
+        <di:waypoint x="3320" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0h5u3ay_di" bpmnElement="Flow_0h5u3ay">
+        <di:waypoint x="3105" y="117" />
+        <di:waypoint x="3160" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00mcvn8_di" bpmnElement="Flow_00mcvn8">
+        <di:waypoint x="3000" y="240" />
+        <di:waypoint x="3080" y="240" />
+        <di:waypoint x="3080" y="142" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1w73yp3_di" bpmnElement="Flow_1w73yp3">
+        <di:waypoint x="2820" y="142" />
+        <di:waypoint x="2820" y="240" />
+        <di:waypoint x="2900" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1to0s36_di" bpmnElement="Flow_1to0s36">
+        <di:waypoint x="3000" y="117" />
+        <di:waypoint x="3055" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0azjyb2_di" bpmnElement="Flow_0azjyb2">
+        <di:waypoint x="2845" y="117" />
+        <di:waypoint x="2900" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0p14xv0_di" bpmnElement="Flow_0p14xv0">
+        <di:waypoint x="2430" y="117" />
+        <di:waypoint x="2485" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03qnse9_di" bpmnElement="Flow_03qnse9">
+        <di:waypoint x="2090" y="117" />
+        <di:waypoint x="2160" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_153oalc_di" bpmnElement="Flow_153oalc">
+        <di:waypoint x="1920" y="117" />
+        <di:waypoint x="1990" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_014927w_di" bpmnElement="Flow_014927w">
+        <di:waypoint x="1750" y="117" />
+        <di:waypoint x="1820" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0nt176j_di" bpmnElement="Flow_0nt176j">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1kd3byc_di" bpmnElement="Flow_1kd3byc">
+        <di:waypoint x="1580" y="117" />
+        <di:waypoint x="1650" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0equmul_di" bpmnElement="Flow_0equmul">
+        <di:waypoint x="1410" y="117" />
+        <di:waypoint x="1480" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0oso04x_di" bpmnElement="Flow_0oso04x">
+        <di:waypoint x="1240" y="117" />
+        <di:waypoint x="1310" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_070zj0a_di" bpmnElement="Flow_070zj0a">
+        <di:waypoint x="1070" y="117" />
+        <di:waypoint x="1140" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1v0z8fi_di" bpmnElement="Flow_1v0z8fi">
+        <di:waypoint x="905" y="117" />
+        <di:waypoint x="970" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0alfzdz_di" bpmnElement="Flow_0alfzdz">
+        <di:waypoint x="790" y="117" />
+        <di:waypoint x="855" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1rez96u_di" bpmnElement="Flow_1rez96u">
+        <di:waypoint x="630" y="230" />
+        <di:waypoint x="880" y="230" />
+        <di:waypoint x="880" y="142" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0v96f2c_di" bpmnElement="Flow_0v96f2c">
+        <di:waypoint x="450" y="142" />
+        <di:waypoint x="450" y="230" />
+        <di:waypoint x="530" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1r4u4e6_di" bpmnElement="Flow_1r4u4e6">
+        <di:waypoint x="630" y="117" />
+        <di:waypoint x="690" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12yjafn_di" bpmnElement="Flow_12yjafn">
+        <di:waypoint x="475" y="117" />
+        <di:waypoint x="530" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_121jjrm_di" bpmnElement="Flow_121jjrm">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="425" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0k50ubo_di" bpmnElement="Activity_0k50ubo">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0bptwe5_di" bpmnElement="Activity_0bptwe5">
+        <dc:Bounds x="530" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03sxpy1_di" bpmnElement="Activity_03sxpy1">
+        <dc:Bounds x="530" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0b2lq75_di" bpmnElement="Activity_0b2lq75">
+        <dc:Bounds x="690" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1t5cta5_di" bpmnElement="Activity_1t5cta5">
+        <dc:Bounds x="970" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1ucgabt_di" bpmnElement="Activity_1ucgabt">
+        <dc:Bounds x="1310" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1fhuyis_di" bpmnElement="Activity_1fhuyis">
+        <dc:Bounds x="1480" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0urvjzc_di" bpmnElement="Activity_0urvjzc">
+        <dc:Bounds x="1650" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1kq3m31_di" bpmnElement="Gateway_1kq3m31">
+        <dc:Bounds x="425" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0cbzzmw_di" bpmnElement="Gateway_0cbzzmw">
+        <dc:Bounds x="855" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_02f59sh_di" bpmnElement="Activity_02f59sh">
+        <dc:Bounds x="1140" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1qeiq4n_di" bpmnElement="Activity_11t9on7">
+        <dc:Bounds x="1820" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0u69fg0_di" bpmnElement="Activity_1sgkikv">
+        <dc:Bounds x="2160" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zkxari_di" bpmnElement="Activity_0zkxari">
+        <dc:Bounds x="2330" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1339urx_di" bpmnElement="Activity_1339urx">
+        <dc:Bounds x="2900" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_10fjkod_di" bpmnElement="Activity_10fjkod">
+        <dc:Bounds x="2900" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_16vonu3_di" bpmnElement="Activity_16vonu3">
+        <dc:Bounds x="3160" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1dhvgkn_di" bpmnElement="Activity_1dhvgkn">
+        <dc:Bounds x="3320" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1i06noy_di" bpmnElement="Gateway_1i06noy">
+        <dc:Bounds x="2485" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1lf9qlc_di" bpmnElement="Event_1lf9qlc">
+        <dc:Bounds x="2592" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2569" y="142" width="85" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0d3dd9s_di" bpmnElement="Event_0d3dd9s">
+        <dc:Bounds x="2592" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2567" y="255" width="87" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1u6r187_di" bpmnElement="Gateway_1u6r187" isMarkerVisible="true">
+        <dc:Bounds x="2685" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_04wzohu_di" bpmnElement="Gateway_04wzohu">
+        <dc:Bounds x="2795" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1uzhjuk_di" bpmnElement="Gateway_1uzhjuk">
+        <dc:Bounds x="3055" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1971u1u_di" bpmnElement="Event_1971u1u">
+        <dc:Bounds x="3482" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0zx3lut_di" bpmnElement="Activity_166eet8">
+        <dc:Bounds x="1990" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
