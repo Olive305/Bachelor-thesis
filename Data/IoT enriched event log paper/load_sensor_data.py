@@ -12,14 +12,40 @@ def parse_datastream_from_event_xml(filename):
     ns = {"xes": "http://code.deckfour.org/xes"}
     event_xml_list = root.findall(".//xes:event", ns)
     results = []
+
+    # Pre-extract all traces and their attributes
+    trace_attrs_map = {}
+    for trace in root.findall(".//xes:trace", ns):
+        trace_attrs = {}
+        for attr in trace.findall("xes:string", ns):
+            key = attr.attrib.get("key")
+            val = attr.attrib.get("value")
+            if key:
+                trace_attrs[key] = val
+        trace_id = id(trace)
+        trace_attrs_map[trace_id] = trace_attrs
+
+        # Mark all events in this trace with a reference to their trace attributes
+        for event in trace.findall("xes:event", ns):
+            event.attrib["_trace_id"] = str(trace_id)
+
     for event_xml in event_xml_list:
-        # Extract concept:name, org:resource, SubProcessID
-        base = {}
+        # Extract all event attributes
+        event_attrs = {}
         for attr in event_xml.findall("xes:string", ns):
             key = attr.attrib.get("key")
             val = attr.attrib.get("value")
-            if key in ("concept:name", "org:resource", "SubProcessID"):
-                base[key] = val
+            if key:
+                event_attrs[key] = val
+
+        # Get trace attributes for this event
+        trace_id = int(event_xml.attrib.get("_trace_id", "0"))
+        trace_attrs = trace_attrs_map.get(trace_id, {})
+
+        # Merge trace and event attributes (trace attributes prefixed)
+        base = {f"trace:{k}": v for k, v in trace_attrs.items()}
+        base.update(event_attrs)
+
         datastreams = event_xml.findall("xes:list[@key='stream:datastream']", ns)
         if not datastreams:
             continue
