@@ -17,7 +17,7 @@ def parse_datastream_from_event_xml(filename):
     trace_attrs_map = {}
     for trace in root.findall(".//xes:trace", ns):
         trace_attrs = {}
-        for attr in trace.findall("xes:string", ns):
+        for attr in trace.findall("*", ns):
             key = attr.attrib.get("key")
             val = attr.attrib.get("value")
             if key:
@@ -30,9 +30,9 @@ def parse_datastream_from_event_xml(filename):
             event.attrib["_trace_id"] = str(trace_id)
 
     for event_xml in event_xml_list:
-        # Extract all event attributes
+        # Extract all event attributes (include all types)
         event_attrs = {}
-        for attr in event_xml.findall("xes:string", ns):
+        for attr in event_xml.findall("*", ns):
             key = attr.attrib.get("key")
             val = attr.attrib.get("value")
             if key:
@@ -81,38 +81,43 @@ def process_file(filename, parquet_dir):
         return f"Error processing {filename}: {e}"
 
 if __name__ == "__main__":
-    
     xes_directory = Path.cwd() / "Data" / "IoT enriched event log paper" / "20130794" / "Cleaned Event Log"
     xes_files = [f for f in xes_directory.glob("*.xes") if f.name != "MainProcess.xes"]
     print(f"Found {len(xes_files)} .xes files.")
 
     parquet_dir = xes_directory / "parquet"
     parquet_dir.mkdir(exist_ok=True)
-    with ProcessPoolExecutor() as executor:
-        futures = {executor.submit(process_file, str(f), str(parquet_dir)): f for f in xes_files}
-        for i, future in enumerate(as_completed(futures), 1):
-            print(f"Progress: {i}/{len(xes_files)} — {future.result()}")
+    
+    if True:
+        with ProcessPoolExecutor() as executor:
+            futures = {executor.submit(process_file, str(f), str(parquet_dir)): f for f in xes_files}
+            for i, future in enumerate(as_completed(futures), 1):
+                print(f"Progress: {i}/{len(xes_files)} — {future.result()}")
 
-    print("All files processed.")
+        print("All files processed.")
     
     # Combine all parquet files into one
 
     parquet_files = sorted(glob.glob(str(parquet_dir / "*.parquet")))
-    tables = []
-    for f in parquet_files:
+    combined_file = parquet_dir / "all_combined_new.parquet"
+    writer = None
+    num_tables = 0
+    print(f"Combining {len(parquet_files)} parquet files into {combined_file}...")
+    for i, f in enumerate(parquet_files, 1):
         try:
+            print(f"[{i}/{len(parquet_files)}] Reading {f}...")
             table = pq.read_table(f)
-            tables.append(table)
+            if writer is None:
+                writer = pq.ParquetWriter(combined_file, table.schema, compression="snappy")
+                print(f"Initialized ParquetWriter with schema from {f}")
+            writer.write_table(table)
+            num_tables += 1
+            print(f"Written {f} to combined file.")
         except Exception as e:
             print(f"Skipping {f} due to schema error: {e}")
-    if tables:
-        try:
-            combined_table = pa.concat_tables(tables, promote=True)
-            combined_file = parquet_dir / "all_combined.parquet"
-            pq.write_table(combined_table, combined_file, compression="snappy")
-            print(f"Combined {len(tables)} files into {combined_file}")
-        except Exception as e:
-            print(f"Error combining tables: {e}")
+    if writer:
+        writer.close()
+        print(f"Combined {num_tables} files into {combined_file}")
     else:
         print("No valid parquet files found to combine.")
     
