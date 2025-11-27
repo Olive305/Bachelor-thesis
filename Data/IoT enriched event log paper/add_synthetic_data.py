@@ -40,7 +40,7 @@ def define_values():
             last_valve_state = new_value_df.at[i-1, "valve"]
             last_oven_temp = new_value_df.at[i-1, "temp"]
             last_timestamp = new_value_df.at[i-1, "stream:timestamp"]
-        
+
         result = valve(
             new_value_df.at[i, "stream:value"],
             new_value_df.at[i, "concept:name"],
@@ -54,7 +54,6 @@ def define_values():
         new_value_df.at[i, "valve"] = result[0]
         new_value_df.at[i, "temp"] = result[1]
     
-    return new_value_df
     return new_value_df
 
 # Returns valve sensor value but temperature value is stored in last_oven_temp
