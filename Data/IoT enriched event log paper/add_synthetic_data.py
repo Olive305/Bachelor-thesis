@@ -23,7 +23,7 @@ def get_temp_sensor_values():
             "stream:system",
             "stream:value",
             "stream:timestamp",
-        FROM sensor_data
+        FROM read_parquet('{input_file}')
         WHERE "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
         AND "stream:procedure_type" = 'stream:continuous'
         AND "stream:observation" LIKE '%Temperature%'
@@ -35,7 +35,7 @@ def get_smallest_temperature_value():
     result = con.execute("""
         SELECT 
             "stream:value",
-        FROM sensor_data
+        FROM read_parquet('{input_file}')
         WHERE "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
         AND "stream:procedure_type" = 'stream:continuous'
         AND "stream:observation" LIKE '%Temperature%'
