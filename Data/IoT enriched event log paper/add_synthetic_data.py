@@ -7,6 +7,10 @@ import pandas as pd
 parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
 input_file = os.path.join(parquet_directory, "all_combined_new.parquet")
 
+
+# DuckDB connection
+con = duckdb.connect()
+
 # Check if parquet directory and file exist
 print(f"Parquet directory exists: {os.path.exists(parquet_directory)}")
 print(f"Input parquet file exists: {os.path.exists(input_file)}")
@@ -58,8 +62,6 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
     synthetic_value = pressure * temperature_distance
     return synthetic_value
 
-# DuckDB connection
-con = duckdb.connect()
 
 # Register the function in DuckDB
 con.create_function("value_per_timestamp", 2, synthetic_pressure_per_timestamp)
