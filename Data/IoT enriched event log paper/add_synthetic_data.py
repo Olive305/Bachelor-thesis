@@ -17,7 +17,7 @@ print(f"Input parquet file exists: {os.path.exists(input_file)}")
 
 def get_temp_sensor_values():
     # Create a df with all the values of temperature sensors sorted by their timestamp
-    return con.execute("""
+    return con.execute(f"""
         SELECT 
             "stream:observation",
             "stream:system",
@@ -32,7 +32,7 @@ def get_temp_sensor_values():
     """).df()
     
 def get_smallest_temperature_value():
-    result = con.execute("""
+    result = con.execute(f"""
         SELECT 
             "stream:value",
         FROM read_parquet('{input_file}')
