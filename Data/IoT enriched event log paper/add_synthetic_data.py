@@ -64,7 +64,7 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
 
 
 # Register the function in DuckDB
-con.create_function("value_per_timestamp", 2, synthetic_pressure_per_timestamp)
+con.create_function("value_per_timestamp", synthetic_pressure_per_timestamp, return_type="DOUBLE")
 
 output_file = os.path.join(parquet_directory, "all_combined_with_synthetic.parquet")
 
