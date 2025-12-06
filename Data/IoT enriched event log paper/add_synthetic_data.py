@@ -97,7 +97,7 @@ con.execute(f"""
             FROM base
             WHERE "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
               AND "stream:procedure_type" = 'stream:continuous'
-              AND "stream:observation" LIKE '%Temperature%'
+              AND "stream:observation" LIKE '%Pressure%'
         ),
 
         preserved AS (
@@ -105,7 +105,7 @@ con.execute(f"""
             WHERE NOT (
                 "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
                 AND "stream:procedure_type" = 'stream:continuous'
-                AND "stream:observation" LIKE '%Temperature%'
+                AND "stream:observation" LIKE '%Pressure%'
             )
         ),
 
