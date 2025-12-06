@@ -1,6 +1,7 @@
 import duckdb
 import os
 import pandas as pd
+import random
 
 
 # Directory with parquet files
@@ -49,20 +50,50 @@ def get_smallest_temperature_value():
     
     return result['stream:value'].iloc[0]
 
+def get_largest_temperature_value():
+    result = con.execute(f"""
+        SELECT 
+            "stream:value",
+        FROM read_parquet('{input_file}')
+        WHERE "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
+        AND "stream:procedure_type" = 'stream:continuous'
+        AND "stream:observation" LIKE '%Temperature%'
+        GROUP BY "org:resource", "stream:observation", "stream:system", "stream:value", "stream:timestamp"
+        ORDER BY "stream:value" DESC
+        LIMIT 1
+    """).df()
+    
+    return result['stream:value'].iloc[0]
+
 # global variables
 temp_sensor_values = get_temp_sensor_values()
 min_temp_value = get_smallest_temperature_value()
-    
+max_temp_value = get_largest_temperature_value()
+
 def synthetic_pressure_per_timestamp(timestamp, pressure):
     # Synthetic value = pressure * temperature_distance 
 
     # Get last recorded temperature value before or at the given timestamp
-    temp_value = temp_sensor_values[
-        temp_sensor_values['stream:timestamp'] <= timestamp
-    ]['stream:value'].iloc[-1]
+    # If that timestamp is before the first temperature reading, use a random temperature value between min_temp_value and max_temp_value
+    try:
+        temp_value = float(
+            temp_sensor_values[
+                temp_sensor_values['stream:timestamp'] <= timestamp
+            ]['stream:value'].iloc[-1]
+        )
+    except Exception:
+        # pick a random temperature within [min_temp_value, max_temp_value]
+        temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
+        
+    # With 5% probability add a random value for temp_value to create anomalies
+    if random.random() < 0.05:
+        # pick a random temperature within [min_temp_value, max_temp_value]
+        temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
     
+    # Calculate the synthetic value as difference of temperature to min_temp_value multiplied by pressure
     temperature_distance = float(temp_value) - float(min_temp_value) + 1  # +1 to avoid zero multiplication
     synthetic_value = float(pressure) * float(temperature_distance)
+    
     return synthetic_value
 
 
