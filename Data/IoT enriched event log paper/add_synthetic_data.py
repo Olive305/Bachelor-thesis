@@ -17,12 +17,12 @@ print(f"Input parquet file exists: {os.path.exists(input_file)}")
 
 def get_temp_sensor_values():
     # Create a df with all the values of temperature sensors sorted by their timestamp
-    return con.execute(f"""
+    df = con.execute(f"""
         SELECT 
             "stream:observation",
             "stream:system",
             "stream:value",
-            "stream:timestamp",
+            "stream:timestamp"
         FROM read_parquet('{input_file}')
         WHERE "org:resource" IN ('ov_1', 'mm_1', 'sm_1', 'wt_1', 'vgr_1')
         AND "stream:procedure_type" = 'stream:continuous'
@@ -30,6 +30,9 @@ def get_temp_sensor_values():
         GROUP BY "org:resource", "stream:observation", "stream:system", "stream:value", "stream:timestamp"
         ORDER BY "stream:timestamp" ASC
     """).df()
+    # ensure timestamp column is actual datetime objects for safe comparison with datetime.datetime
+    df['stream:timestamp'] = pd.to_datetime(df['stream:timestamp'])
+    return df
     
 def get_smallest_temperature_value():
     result = con.execute(f"""
@@ -51,15 +54,15 @@ temp_sensor_values = get_temp_sensor_values()
 min_temp_value = get_smallest_temperature_value()
     
 def synthetic_pressure_per_timestamp(timestamp, pressure):
-# Synthetic value = pressure * temperature_distance 
+    # Synthetic value = pressure * temperature_distance 
 
-# Get last recorded temperature value before or at the given timestamp
+    # Get last recorded temperature value before or at the given timestamp
     temp_value = temp_sensor_values[
         temp_sensor_values['stream:timestamp'] <= timestamp
     ]['stream:value'].iloc[-1]
     
-    temperature_distance = temp_value - min_temp_value + 1  # +1 to avoid zero multiplication
-    synthetic_value = pressure * temperature_distance
+    temperature_distance = float(temp_value) - float(min_temp_value) + 1  # +1 to avoid zero multiplication
+    synthetic_value = float(pressure) * float(temperature_distance)
     return synthetic_value
 
 
