@@ -129,12 +129,17 @@ class AutoencoderTrainer:
         self.mse = nn.MSELoss()
         self.bce = nn.BCELoss()
 
-        # Optimizer
-        self.optimizer = optim.Adam(
-            self.model.parameters(),
-            lr=lr,
-            weight_decay=weight_decay
-        )
+        # Optimizer: create only if a model is provided to allow using this
+        # class for utility methods (e.g. data preparation) before instantiating
+        # a trainer with a real model.
+        if self.model is not None:
+            self.optimizer = optim.Adam(
+                self.model.parameters(),
+                lr=lr,
+                weight_decay=weight_decay
+            )
+        else:
+            self.optimizer = None
 
     # ---------------------------------------------------------
     # Placeholder: Determine feature type for a dataframe column
@@ -288,15 +293,15 @@ class AutoencoderTrainer:
         #! Fix column names in query
         df = con.execute(f"""
             SELECT 
-                "stream:timestamp",
-                "concept:name",
-                "sensor:id" AS "stream:system" + '_' + "stream:observation",
-                "stream:elapsed_seconds_since_start",
-                "stream:value",
+            "stream:timestamp",
+            "concept:name",
+            "stream:system" || '_' || "stream:observation" AS "sensor:id",
+            "stream:value"
             FROM read_parquet('{file_location}')
-            WHERE "org:resource" ='ov_1'
+            WHERE "org:resource" = 'ov_1'
             AND "stream:observation" NOT LIKE '%NFC%'
-            GROUP BY "stream:observation", "stream:system", "stream:value", "stream:timestamp", "stream:elapsed_seconds_since_start", "concept:name"
+            AND "stream:observation" NOT LIKE '%Current_State%'
+            GROUP BY "stream:observation", "stream:system", "stream:value", "stream:timestamp", "concept:name"
             ORDER BY "stream:timestamp" ASC
         """).df()
         # ensure timestamp column is actual datetime objects for safe comparison with datetime.datetime
@@ -326,7 +331,6 @@ class AutoencoderTrainer:
         # Start wide dataframe with reference sensor
         wide = ref[["stream:timestamp"]].drop_duplicates().reset_index(drop=True)
         wide[reference_sensor_id] = ref["stream:value"].values
-        wide["stream:elapsed_seconds_since_start"] = ref["stream:elapsed_seconds_since_start"].values
         
 
         events = df["concept:name"].unique().tolist() # Binary value per event to indicate which event is happening
