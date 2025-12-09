@@ -301,6 +301,8 @@ class AutoencoderTrainer:
         """).df()
         # ensure timestamp column is actual datetime objects for safe comparison with datetime.datetime
         df['stream:timestamp'] = pd.to_datetime(df['stream:timestamp'])
+        
+        print(" Data loaded. Reshaping...")
 
         # Change the data to include same timestamps in a single row
         # Create a new dataframe
@@ -325,7 +327,7 @@ class AutoencoderTrainer:
         wide = ref[["stream:timestamp"]].drop_duplicates().reset_index(drop=True)
         wide[reference_sensor_id] = ref["stream:value"].values
         wide["stream:elapsed_seconds_since_start"] = ref["stream:elapsed_seconds_since_start"].values
-                
+        
 
         events = df["concept:name"].unique().tolist() # Binary value per event to indicate which event is happening
 
@@ -333,6 +335,8 @@ class AutoencoderTrainer:
         for event in events:
             wide[f"event:{event}"] = (ref["concept:name"] == event).astype(int).values
 
+        print(" Initial sensor added with timestamps and event data. Merging other sensors...")
+        
         # Process each other sensor
         for sid, sdf in others.groupby("sensor:id"):
 
@@ -382,6 +386,8 @@ class AutoencoderTrainer:
 if __name__ == "__main__":
 
     from torch.utils.data import Dataset, DataLoader
+    
+    print("Starting autoencoder test...")
 
     class TensorDatasetWrapper(Dataset):
         def __init__(self, tensor):
@@ -390,6 +396,8 @@ if __name__ == "__main__":
             return self.tensor.size(0)
         def __getitem__(self, idx):
             return self.tensor[idx]
+
+    print("Preparing data...")
 
     # Get file location
     parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
@@ -404,11 +412,15 @@ if __name__ == "__main__":
     # 2) Remove timestamp column for training
     df_model = df.drop(columns=["stream:timestamp"])
 
+    print("Detecting column types...")
+
     # 3) Detect column types
     cont_idx, bin_idx, evt_idx = AutoencoderTrainer.detect_column_types(df_model)
     print("Continuous:", cont_idx)
     print("Binary:", bin_idx)
     print("Event:", evt_idx)
+
+    print("Preparing dataset and dataloaders...")
 
     # 4) Convert to tensor
     X = torch.tensor(df_model.values, dtype=torch.float32)
@@ -422,6 +434,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
     val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False)
 
+    print("Initializing autoencoder...")
+
     # 6) Autoencoder
     model = MixedTabularAutoencoder(
         n_continuous=len(cont_idx),
@@ -430,6 +444,8 @@ if __name__ == "__main__":
         bottleneck_dim=3
     )
 
+    print("Starting training...")
+    
     # 7) Trainer
     trainer = AutoencoderTrainer(
         model=model,
@@ -438,8 +454,16 @@ if __name__ == "__main__":
         evt_idx=evt_idx
     )
 
+    print("Training autoencoder...")
+
     # 8) Train
     trainer.fit(train_loader, val_loader, epochs=200, patience=15, device="cuda")
 
+    print("Computing anomaly scores...")
+
     # 9) Compute anomaly scores
     scores = trainer.anomaly_scores(val_loader)
+
+
+    print("Anomaly scores for validation set:")
+    print(scores)
