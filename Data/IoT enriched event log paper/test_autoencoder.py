@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 class MixedTabularAutoencoder(nn.Module):
-    def __init__(self, n_continuous, n_binary, n_event_binary, bottleneck_dim=3):
+    def __init__(self, n_continuous, n_binary, n_event_binary, bottleneck_dim=5):
         super().__init__()
         
         self.n_cont = n_continuous
@@ -267,17 +267,21 @@ class AutoencoderTrainer:
                 if self.cont_idx:
                     err += ((recon[:, self.cont_idx] - batch[:, self.cont_idx]) ** 2).mean(dim=1)
 
-                # Binary BCE
+                # Binary BCE (use stable BCELoss instead of manual log)
                 if self.bin_idx:
                     b = recon[:, self.bin_idx]
                     t = batch[:, self.bin_idx]
-                    err += -(t * b.log() + (1 - t) * (1 - b).log()).mean(dim=1)
+                    # Clamp to avoid log(0) and log(-x)
+                    b_safe = torch.clamp(b, min=1e-7, max=1-1e-7)
+                    err += -(t * b_safe.log() + (1 - t) * (1 - b_safe).log()).mean(dim=1)
 
-                # Event BCE
+                # Event BCE (use stable BCELoss instead of manual log)
                 if self.evt_idx:
                     b = recon[:, self.evt_idx]
                     t = batch[:, self.evt_idx]
-                    err += -(t * b.log() + (1 - t) * (1 - b).log()).mean(dim=1)
+                    # Clamp to avoid log(0) and log(-x)
+                    b_safe = torch.clamp(b, min=1e-7, max=1-1e-7)
+                    err += -(t * b_safe.log() + (1 - t) * (1 - b_safe).log()).mean(dim=1)
 
                 scores.extend(err.cpu().numpy())
         
@@ -307,6 +311,8 @@ class AutoencoderTrainer:
         # ensure timestamp column is actual datetime objects for safe comparison with datetime.datetime
         df['stream:timestamp'] = pd.to_datetime(df['stream:timestamp'])
         
+        print(f"    Loaded {len(df)} rows from {file_location}\n")
+        
         print(" Data loaded. Reshaping...")
 
         # Change the data to include same timestamps in a single row
@@ -321,17 +327,28 @@ class AutoencoderTrainer:
         """
 
         # One of the synchronized sensors, which will be used to get the timestamps
-        reference_sensor_id = 'http://iot.uni-trier.de/FTOnto#CompressorPowerLevel_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8'
+        reference_sensor_id = "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#CompressorPowerLevel"
 
         #? Is the ref dataframe directly accessible as id? So can we just copy values to the other df like here?
         # Split reference and others
         ref = df[df["sensor:id"] == reference_sensor_id].sort_values("stream:timestamp")
         others = df[df["sensor:id"] != reference_sensor_id].sort_values("stream:timestamp")
 
-        # Start wide dataframe with reference sensor
-        wide = ref[["stream:timestamp"]].drop_duplicates().reset_index(drop=True)
-        wide[reference_sensor_id] = ref["stream:value"].values
-        
+        # Reset index for safe alignment and display the reference dataframe
+        ref = ref.reset_index(drop=True)
+        print("Reference dataframe preview (first 10 rows):")
+        print(ref.head(10))
+        print(f"Reference dataframe shape: {ref.shape}\n")
+
+        # Initialize 'wide' with the reference timestamps and the reference sensor values
+        wide = pd.DataFrame({
+            "stream:timestamp": ref["stream:timestamp"].values,
+            reference_sensor_id: ref["stream:value"].values
+        })
+
+        # Show the initialized wide head so you can confirm alignment before merging others
+        print("Initialized 'wide' preview:")
+        print(wide.head(10))
 
         events = df["concept:name"].unique().tolist() # Binary value per event to indicate which event is happening
 
@@ -341,57 +358,86 @@ class AutoencoderTrainer:
 
         print(" Initial sensor added with timestamps and event data. Merging other sensors...")
         
-        # Process each other sensor
-        for sid, sdf in others.groupby("sensor:id"):
+        for sensor_id in others["sensor:id"].unique():
+            sensor_data = others[others["sensor:id"] == sensor_id][["stream:timestamp", "stream:value"]].reset_index(drop=True)
+            
+            print(f"  Merging sensor: {sensor_id} with {len(sensor_data)} entries")
+            
+            # For each timestamp in wide, find the closest timestamp in sensor_data
+            sensor_values = []
+            sensor_timestamps = sensor_data["stream:timestamp"].values
+            sensor_values_list = sensor_data["stream:value"].values
+            
+            print(f"\n   Searching closest timestamps for {len(wide)} entries...")
+            
+            for ts in wide["stream:timestamp"]:
+                # Find index of closest timestamp
+                pos = sensor_data["stream:timestamp"].searchsorted(ts)
 
-            if sid not in wide.columns:
-                continue  # Skip sensors not in the learning dataframe
-
-            # asof merge to find nearest timestamp
-            merged = pd.merge_asof(
-                left=wide[["stream:timestamp"]],
-                right=sdf.sort_values("stream:timestamp"),
-                left_on="stream:timestamp",
-                right_on="stream:timestamp",
-                direction="nearest"
-            )
-            wide[sid] = merged["stream:value"].values
+                if pos == 0:
+                    sensor_values.append(sensor_values_list[0])
+                elif pos >= len(sensor_timestamps):
+                    sensor_values.append(sensor_values_list[-1])
+                else:
+                    left_ts = pd.Timestamp(sensor_timestamps[pos - 1])
+                    right_ts = pd.Timestamp(sensor_timestamps[pos])
+                    # choose the closer timestamp
+                    if abs(ts - left_ts) <= abs(right_ts - ts):
+                        sensor_values.append(sensor_values_list[pos - 1])
+                    else:
+                        sensor_values.append(sensor_values_list[pos])
+                        
+            print(f"   Merged {len(sensor_values)} values for sensor {sensor_id}")
+            
+            wide[sensor_id] = sensor_values
 
         return wide
 
+    @staticmethod
     def detect_column_types(df):
         cont_idx = []
         bin_idx = []
         evt_idx = []
 
         for i, col in enumerate(df.columns):
-            series = df[col]
-            unique_vals = series.dropna().unique()
+            
+            # Timestamps are NOT model features → ignore as early as possible
+            if "timestamp" in col:
+                continue
 
             # Event columns start with 'event:'
             if col.startswith("event:"):
                 evt_idx.append(i)
-            
-            # Binary detection (generic)
-            elif len(unique_vals) <= 2 and set(unique_vals) <= {0, 1}:
-                bin_idx.append(i)
-
-            # Timestamps are NOT model features → ignore here
-            elif "timestamp" in col:
                 continue
 
-            # Everything else = continuous
+            series = df[col]
+            print(f" Sample values: {series.unique()[:5]}")
+            unique_vals = series.dropna().unique()
+
+            # Robust binary detection:
+            #  - Try to coerce unique values to numeric and check subset of {0.0,1.0}
+            #  - Treat boolean dtype as binary
+            num_vals = pd.to_numeric(pd.Series(unique_vals), errors="coerce").dropna().unique()
+            print(f" Unique values: {unique_vals}, Numeric values: {num_vals}")
+            if len(num_vals) > 0 and set(num_vals).issubset({0.0, 1.0}):
+                bin_idx.append(i)
+            elif pd.api.types.is_bool_dtype(series):
+                bin_idx.append(i)
             else:
+                # Everything else = continuous
                 cont_idx.append(i)
 
         return cont_idx, bin_idx, evt_idx
+    
+
 
 
 if __name__ == "__main__":
 
     from torch.utils.data import Dataset, DataLoader
+    import numpy as np
     
-    print("Starting autoencoder test...")
+    print("Starting autoencoder test...\n")
 
     class TensorDatasetWrapper(Dataset):
         def __init__(self, tensor):
@@ -401,7 +447,7 @@ if __name__ == "__main__":
         def __getitem__(self, idx):
             return self.tensor[idx]
 
-    print("Preparing data...")
+    print("Preparing data...\n")
 
     # Get file location
     parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
@@ -415,19 +461,45 @@ if __name__ == "__main__":
 
     # 2) Remove timestamp column for training
     df_model = df.drop(columns=["stream:timestamp"])
+    
+    # Print the first row of the df
+    print("\nFirst row of the prepared data:")
+    print(df_model)
 
-    print("Detecting column types...")
+    print("\nDetecting column types...\n")
 
     # 3) Detect column types
     cont_idx, bin_idx, evt_idx = AutoencoderTrainer.detect_column_types(df_model)
     print("Continuous:", cont_idx)
     print("Binary:", bin_idx)
     print("Event:", evt_idx)
+    
+    
+    # Map detected index lists (which refer to original df_model column positions)
+    # to column names so we can coerce/convert by name and reorder the dataframe
+    cont_cols = [df_model.columns[i] for i in cont_idx] if cont_idx else []
+    bin_cols = [df_model.columns[i] for i in bin_idx] if bin_idx else []
+    evt_cols = [df_model.columns[i] for i in evt_idx] if evt_idx else []
 
-    print("Preparing dataset and dataloaders...")
+    if bin_cols:
+        for col in bin_cols:
+            # Coerce to numeric, round to 0/1 and convert to float so NaNs become np.nan (compatible with numpy)
+            df_model[col] = pd.to_numeric(df_model[col], errors="coerce").round().astype(float)
+        print(f"Converted {len(bin_cols)} binary columns to numeric 0/1 floats (NaN preserved).")
+    else:
+        print("No binary columns to convert.")
+
+    # Reorder columns to match model expectation: continuous, binary, event
+    ordered_cols = cont_cols + bin_cols + evt_cols
+    df_model_reordered = df_model[ordered_cols]
+
+    # Ensure all remaining columns are numeric and use a concrete numpy-compatible dtype (float32)
+    df_numeric = df_model_reordered.apply(pd.to_numeric, errors='coerce').astype('float32')
+
+    print("\nPreparing dataset and dataloaders...\n")
 
     # 4) Convert to tensor
-    X = torch.tensor(df_model.values, dtype=torch.float32)
+    X = torch.tensor(df_numeric.values, dtype=torch.float32)
 
     # 5) Create dataset + loader
     dataset = TensorDatasetWrapper(X)
@@ -438,36 +510,121 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
     val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False)
 
-    print("Initializing autoencoder...")
+    print("Initializing autoencoder...\n")
 
-    # 6) Autoencoder
+    # 6) Autoencoder: sizes derived from counts of each column group
     model = MixedTabularAutoencoder(
-        n_continuous=len(cont_idx),
-        n_binary=len(bin_idx),
-        n_event_binary=len(evt_idx),
+        n_continuous=len(cont_cols),
+        n_binary=len(bin_cols),
+        n_event_binary=len(evt_cols),
         bottleneck_dim=3
     )
 
     print("Starting training...")
     
-    # 7) Trainer
+    # 7) Trainer: pass indices relative to the reordered tensor layout
+    cont_positions = list(range(0, len(cont_cols)))
+    bin_positions = list(range(len(cont_cols), len(cont_cols) + len(bin_cols)))
+    evt_positions = list(range(len(cont_cols) + len(bin_cols), len(cont_cols) + len(bin_cols) + len(evt_cols)))
+
     trainer = AutoencoderTrainer(
         model=model,
-        cont_idx=cont_idx,
-        bin_idx=bin_idx,
-        evt_idx=evt_idx
+        cont_idx=cont_positions,
+        bin_idx=bin_positions,
+        evt_idx=evt_positions
     )
 
     print("Training autoencoder...")
 
-    # 8) Train
-    trainer.fit(train_loader, val_loader, epochs=200, patience=15, device="cuda")
+    # 8) Select device (GPU if available, otherwise CPU) and train
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    trainer.fit(train_loader, val_loader, epochs=250, patience=15, device=device)
 
     print("Computing anomaly scores...")
 
-    # 9) Compute anomaly scores
-    scores = trainer.anomaly_scores(val_loader)
+    # 9) Compute anomaly scores (use same device)
+    scores = trainer.anomaly_scores(val_loader, device=device)
 
 
-    print("Anomaly scores for validation set:")
-    print(scores)
+    arr = np.array(scores)
+    n = len(arr)
+    if n == 0:
+        print("No anomaly scores to display.")
+    else:
+        mean = arr.mean()
+        median = np.median(arr)
+        std = arr.std()
+        p90 = np.percentile(arr, 90)
+        p95 = np.percentile(arr, 95)
+        p99 = np.percentile(arr, 99)
+
+        print("Anomaly score summary:")
+        print(f" count = {n}")
+        print(f" mean  = {mean:.6f}, median = {median:.6f}, std = {std:.6f}")
+        print(f" min   = {arr.min():.6f}, max    = {arr.max():.6f}")
+        print(f" percentiles: 90% = {p90:.6f}, 95% = {p95:.6f}, 99% = {p99:.6f}")
+
+        topk = min(10, n)
+        top_idx = np.argsort(-arr)[:topk]
+
+        print(f"\nTop {topk} anomalies (index in validation set, score):")
+        for rank, idx in enumerate(top_idx, start=1):
+            print(f" {rank:2d}. idx = {int(idx):4d}, score = {arr[idx]:.6f}")
+
+        # Suggested threshold and counts
+        suggested_threshold = p95
+        n_above = int((arr > suggested_threshold).sum())
+        print(f"\nSuggested threshold = 95th percentile ({suggested_threshold:.6f})")
+        print(f" Samples above threshold: {n_above} ({n_above / n * 100:.1f}%)")
+
+    # =====================================================================
+    # Inspect top anomalies and random samples with their reconstructions
+    # =====================================================================
+    print("\n" + "="*80)
+    print("TOP 3 MOST ANOMALOUS SAMPLES")
+    print("="*80)
+
+    # Get indices of top 3 anomalies
+    top_3_indices = np.argsort(-arr)[:3]
+
+    trainer.model.eval()
+    with torch.no_grad():
+        for rank, val_idx in enumerate(top_3_indices, start=1):
+            # Get the actual sample from validation set
+            sample_tensor = X[val_ds.indices[val_idx]].unsqueeze(0).to(device)
+            recon_tensor, _ = trainer.model(sample_tensor)
+
+            original = sample_tensor.squeeze().cpu().numpy()
+            reconstruction = recon_tensor.squeeze().cpu().numpy()
+            error = arr[val_idx]
+
+            print(f"\n--- Anomaly #{rank} (Val Index: {val_idx}, Score: {error:.6f}) ---")
+            print(f"Original:       {original}")
+            print(f"Reconstruction: {reconstruction}")
+            print(f"Difference:     {np.abs(original - reconstruction)}")
+
+    # =====================================================================
+    # Random 5 samples with their reconstructions
+    # =====================================================================
+    print("\n" + "="*80)
+    print("5 RANDOM NORMAL SAMPLES")
+    print("="*80)
+
+    random_indices = np.random.choice(len(val_ds), size=5, replace=False)
+
+    with torch.no_grad():
+        for rank, val_idx in enumerate(random_indices, start=1):
+            sample_tensor = X[val_ds.indices[val_idx]].unsqueeze(0).to(device)
+            recon_tensor, _ = trainer.model(sample_tensor)
+
+            original = sample_tensor.squeeze().cpu().numpy()
+            reconstruction = recon_tensor.squeeze().cpu().numpy()
+            error = arr[val_idx]
+
+            print(f"\n--- Random Sample #{rank} (Val Index: {val_idx}, Score: {error:.6f}) ---")
+            print(f"Original:       {original}")
+            print(f"Reconstruction: {reconstruction}")
+            print(f"Difference:     {np.abs(original - reconstruction)}")
+
