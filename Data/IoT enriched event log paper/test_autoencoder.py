@@ -430,8 +430,6 @@ class AutoencoderTrainer:
         return cont_idx, bin_idx, evt_idx
     
 
-
-
 if __name__ == "__main__":
 
     from torch.utils.data import Dataset, DataLoader
