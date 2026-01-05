@@ -83,6 +83,33 @@ def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
         return df
     except Exception as e:
         raise Exception(f"Failed to query data for resource '{resource}': {str(e)}")
+    
+
+def detect_column_types(df):
+    """Detect and classify column types in the dataframe."""
+    cont_cols = []
+    bin_cols = []
+    categorial_cols = []
+
+    for col in df.columns:
+        
+        # Timestamps are NOT model features → ignore as early as possible
+        if "timestamp" in col:
+            continue
+
+        series = df[col]
+        unique_vals = series.dropna().unique()
+
+        num_vals = pd.to_numeric(pd.Series(unique_vals), errors="coerce").dropna().unique()
+        if len(num_vals) > 0 and set(num_vals).issubset({0.0, 1.0}):
+            bin_cols.append(col)
+        elif len(num_vals) > 0:
+            # Everything else numeric = continuous
+            cont_cols.append(col)
+        else:
+            categorial_cols.append(col)
+
+    return cont_cols, bin_cols, categorial_cols
 
 def prepare_data(df: pd.DataFrame, prints: bool = False):
     """
@@ -106,6 +133,11 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
 
     # Rows where sensor:id CONTAINS the reference sensor string
     ref = df[df["sensor:id"].str.contains(reference_sensor, case=False, na=False)].sort_values("stream:timestamp")
+    
+    if prints:
+        print("Reference dataframe preview (first 10 rows):")
+        print(ref.head(10))
+        print(f"Reference dataframe shape: {ref.shape}\n")
 
     # All other rows
     others = df[~df["sensor:id"].str.contains(reference_sensor, case=False, na=False)].sort_values("stream:timestamp")
@@ -131,6 +163,7 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     if prints:
         print("Initialized 'wide' preview:")
         print(wide.head(10))
+        print("Initialized 'wide' shape:", wide.shape)
 
     wide["event"] = ref["concept:name"].values
 
@@ -160,7 +193,7 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
             elif pos >= len(sensor_timestamps):
                 sensor_values.append(sensor_values_list[-1])
             else:
-                #TODO change to correctly use interpolation instead of just using the closest value
+                # TODO change to correctly use interpolation instead of just using the closest value
                 left_ts = pd.Timestamp(sensor_timestamps[pos - 1])
                 right_ts = pd.Timestamp(sensor_timestamps[pos])
                 # choose the closer timestamp
@@ -174,6 +207,11 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         
         wide[sensor_id] = sensor_values
         
+    if prints:
+        print("Initialized 'wide' preview:")
+        print(wide.head(10))
+        print("Initialized 'wide' shape:", wide.shape)
+        
     # Some of the sensors have 3 dimensional values given as 3 values in a list. Convert them to individual columns in the dataframe
     for col in wide.columns:
         if col not in ["stream:timestamp", "event"]:
@@ -185,7 +223,14 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
                 wide = pd.concat([wide.drop(col, axis=1), split_data], axis=1)
         
     # Apply one hot encoding on categorial columns
-    categorical_cols = wide.select_dtypes(include=['object']).columns
+    num_cols, _, categorical_cols = detect_column_types(wide)
+    if prints:
+        print("\nCategorial Cols:\n")
+        print(categorical_cols)
+        print("\n")
+        print("\nNumerical Cols:\n")
+        print(num_cols)
+        print("\n")
     wide = pd.get_dummies(wide, columns=categorical_cols, drop_first=True)
     
     if prints:
@@ -194,22 +239,89 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print(f"Number of nan values in the df: {num_nan}")
         print("Finnished 'wide' preview:")
         print(wide.head(10))
+        print("Finished 'wide' shape:", wide.shape)
         print("\n\n")
         
     # Split the dataframe into train, validation, and test sets
-    train_val, test = train_test_split(wide, test_size=0.2, random_state=42)
-    train, val = train_test_split(train_val, test_size=0.2, random_state=42)
+    train, test = train_test_split(wide, test_size=0.2, random_state=42)
 
     if prints:
         print(f"Training set size: {len(train)}")
-        print(f"Validation set size: {len(val)}")
         print(f"Test set size: {len(test)}\n")
+        
+    train = train.drop(columns=["stream:timestamp"])
+    test = test.drop(columns=["stream:timestamp"])
+    
+    column_names = train.columns
         
     # Scale training set and apply scaling on test and validation set
     scaler = MinMaxScaler()
-    train_scaled = scaler.fit_transform(train.drop(columns=["stream:timestamp", "event"]))
-    val_scaled = scaler.transform(val.drop(columns=["stream:timestamp", "event"]))
-    test_scaled = scaler.transform(test.drop(columns=["stream:timestamp", "event"]))
+    train_scaled = scaler.fit_transform(train)
+    test_scaled = scaler.transform(test)
 
-    return train_scaled, val_scaled, test_scaled
+    return train_scaled, test_scaled, column_names
 
+def train_autoencoder(train_df: pd.DataFrame, test_df: pd.DataFrame, column_names, prints: bool = False):
+    """
+    Train the autoencoder on the given data
+    
+    Args: 
+        train_df: Dataframe containing the training set
+        test_df: Dataframe containing the test set
+        
+    Returns:
+        prints: If True, it prints further information into console
+        
+    Raises:
+
+    """
+    
+    logfilename = "AE"
+    
+    input_dim = train_df.shape[1]
+    encoding_dim = int(input_dim / 3)
+
+    inputArray = Input(shape=(input_dim,))
+    encoded = Dense(encoding_dim, activation='relu')(inputArray)
+    decoded = Dense(input_dim, activation=None)(encoded)
+
+    autoencoder = Model(inputArray, decoded)
+
+        
+    autoencoder.compile(optimizer=RMSprop(), loss='mean_squared_error', metrics=['mae', 'mse'])
+    
+    batch_size = 32
+    epochs = 8
+    
+    history = autoencoder.fit(train_df, train_df, batch_size=batch_size, epochs=epochs, verbose=1, shuffle=True, validation_data=(test_df, test_df), callbacks=[TensorBoard(log_dir='./logs/{0}'.format(logfilename))])
+    
+    test_score = autoencoder.evaluate(test_df, test_df, verbose=1)
+    print('Test loss: ', test_score[0])
+    print('Test accuracy: ', test_score[1])
+    
+    print("\n\n")
+    # Select random samples from test set and compare input vs output
+    num_samples = 5
+    random_indices = np.random.choice(test_df.shape[0], num_samples, replace=False)
+
+    predictions = autoencoder.predict(test_df[random_indices])
+
+    print("Input vs Output Comparison:")
+    print("=" * 19)
+    for i, idx in enumerate(random_indices):
+        input_sample = test_df[idx]
+        output_sample = predictions[i]
+        
+        print(f"Sample {i+1}:")
+        print(f"{'Column':<150}{'Input Value':<20}{'Predicted Value':<20}")
+        print("=" * 190)
+        
+        for col, input_val, output_val in zip(range(input_sample.shape[0]), input_sample, output_sample):
+            print(f"{column_names[col]:<150}{input_val:<20}{output_val:<20}")
+        
+        print("-" * 190)
+    
+if __name__ == "__main__":
+    df = read_data("ov_1", prints=True)
+    train_scaled, test_scaled, column_names = prepare_data(df, prints=True)
+    train_autoencoder(train_scaled, test_scaled, column_names, prints=True)
