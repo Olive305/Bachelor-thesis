@@ -13,7 +13,7 @@ from keras import regularizers
 import sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, roc_auc_score
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report
 
 import seaborn as sns
@@ -255,73 +255,12 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     column_names = train.columns
         
     # Scale training set and apply scaling on test and validation set
-    scaler = MinMaxScaler()
+    scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train)
     test_scaled = scaler.transform(test)
 
-    return train_scaled, test_scaled, column_names
+    return train_scaled, test_scaled, scaler, column_names
 
-def train_autoencoder(train_df: pd.DataFrame, test_df: pd.DataFrame, column_names, prints: bool = False):
-    """
-    Train the autoencoder on the given data
-    
-    Args: 
-        train_df: Dataframe containing the training set
-        test_df: Dataframe containing the test set
-        
-    Returns:
-        prints: If True, it prints further information into console
-        
-    Raises:
-
-    """
-    
-    logfilename = "AE"
-    
-    input_dim = train_df.shape[1]
-    encoding_dim = int(input_dim / 3)
-
-    inputArray = Input(shape=(input_dim,))
-    encoded = Dense(encoding_dim, activation='relu')(inputArray)
-    decoded = Dense(input_dim, activation=None)(encoded)
-
-    autoencoder = Model(inputArray, decoded)
-
-        
-    autoencoder.compile(optimizer=RMSprop(), loss='mean_squared_error', metrics=['mae', 'mse'])
-    
-    batch_size = 32
-    epochs = 8
-    
-    history = autoencoder.fit(train_df, train_df, batch_size=batch_size, epochs=epochs, verbose=1, shuffle=True, validation_data=(test_df, test_df), callbacks=[TensorBoard(log_dir='./logs/{0}'.format(logfilename))])
-    
-    test_score = autoencoder.evaluate(test_df, test_df, verbose=1)
-    print('Test loss: ', test_score[0])
-    print('Test accuracy: ', test_score[1])
-    
-    print("\n\n")
-    # Select random samples from test set and compare input vs output
-    num_samples = 5
-    random_indices = np.random.choice(test_df.shape[0], num_samples, replace=False)
-
-    predictions = autoencoder.predict(test_df[random_indices])
-
-    print("Input vs Output Comparison:")
-    print("=" * 19)
-    for i, idx in enumerate(random_indices):
-        input_sample = test_df[idx]
-        output_sample = predictions[i]
-        
-        print(f"Sample {i+1}:")
-        print(f"{'Column':<150}{'Input Value':<20}{'Predicted Value':<20}")
-        print("=" * 190)
-        
-        for col, input_val, output_val in zip(range(input_sample.shape[0]), input_sample, output_sample):
-            print(f"{column_names[col]:<150}{input_val:<20}{output_val:<20}")
-        
-        print("-" * 190)
-    
-if __name__ == "__main__":
-    df = read_data("ov_1", prints=True)
-    train_scaled, test_scaled, column_names = prepare_data(df, prints=True)
-    train_autoencoder(train_scaled, test_scaled, column_names, prints=True)
+def read_and_prepare_data(resource: str, prints:bool = False):
+    df = read_data(resource, prints=prints)
+    return prepare_data(df , prints=prints)
