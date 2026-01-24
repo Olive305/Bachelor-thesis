@@ -86,6 +86,7 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
         temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
         
     # With 5% probability add a random value for temp_value to create anomalies (distribution does not need to be considered since these are anomalies)
+    # TODO make it such that random value is far away from the actual value
     if random.random() < 0.05:
         # pick a random temperature within [min_temp_value, max_temp_value]
         temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
