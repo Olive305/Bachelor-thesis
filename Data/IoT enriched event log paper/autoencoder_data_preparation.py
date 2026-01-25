@@ -193,7 +193,6 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
             elif pos >= len(sensor_timestamps):
                 sensor_values.append(sensor_values_list[-1])
             else:
-                # TODO change to correctly use interpolation instead of just using the closest value
                 left_ts = pd.Timestamp(sensor_timestamps[pos - 1])
                 right_ts = pd.Timestamp(sensor_timestamps[pos])
                 # choose the closer timestamp
@@ -243,14 +242,17 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print("\n\n")
         
     # Split the dataframe into train, validation, and test sets
-    train, test = train_test_split(wide, test_size=0.2, random_state=42)
+    train, test = train_test_split(wide, test_size=0.2, random_state=69)
+    val, test = train_test_split(test, test_size=0.5, random_state=69)
 
     if prints:
-        print(f"Training set size: {len(train)}")
+        print(f"Training set size: {len(train)}\n")
         print(f"Test set size: {len(test)}\n")
+        print(f"Validation set size: {len(test)}\n")
         
     train = train.drop(columns=["stream:timestamp"])
     test = test.drop(columns=["stream:timestamp"])
+    val = val.drop(columns=["stream:timestamp"])
     
     column_names = train.columns
         
@@ -258,8 +260,9 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train)
     test_scaled = scaler.transform(test)
+    val_scaled = scaler.transform(val)
 
-    return train_scaled, test_scaled, scaler, column_names
+    return train_scaled, test_scaled, val_scaled, scaler, column_names
 
 def read_and_prepare_data(resource: str, prints:bool = False):
     df = read_data(resource, prints=prints)

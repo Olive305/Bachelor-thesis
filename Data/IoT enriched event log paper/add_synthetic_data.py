@@ -75,6 +75,7 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
 
     # Get last recorded temperature value before or at the given timestamp
     # If that timestamp is before the first temperature reading, use a random temperature value between min_temp_value and max_temp_value (this one would be an anomaly)
+    #! Change this code to use the closest value
     try:
         temp_value = float(
             temp_sensor_values[
@@ -82,12 +83,6 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
             ]['stream:value'].iloc[-1]
         )
     except Exception:
-        # pick a random temperature within [min_temp_value, max_temp_value]
-        temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
-        
-    # With 5% probability add a random value for temp_value to create anomalies (distribution does not need to be considered since these are anomalies)
-    # TODO make it such that random value is far away from the actual value
-    if random.random() < 0.05:
         # pick a random temperature within [min_temp_value, max_temp_value]
         temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
     

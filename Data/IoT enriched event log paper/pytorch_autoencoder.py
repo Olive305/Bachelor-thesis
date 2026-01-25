@@ -11,31 +11,40 @@ import numpy as np
 from tabulate import tabulate
 
 import optuna
+import os
 
 # Defining the autoencoder
 class Autoencoder(nn.Module):
-    def __init__(self, input_dim, latent_dim, activation_func):
+    def __init__(self, input_dim, latent_dim, activation_func="relu"):
         super().__init__()
         
         # Calculate sizes of the hidden layers
-        h_layer_1_dim = int(0.66 * input_dim + 0.33 * latent_dim) # approximation of input_dim - (input_dim - latent_dim) * 1/3
-        h_layer_2_dim = int(0.33 * input_dim + 0.66 * latent_dim) # approximation of input_dim - (input_dim - latent_dim) * 2/3
+        h_layer_1_dim = int(0.66 * input_dim + 0.33 * latent_dim)
+        h_layer_2_dim = int(0.33 * input_dim + 0.66 * latent_dim)
         
-        # The autoencoder is seperated in an encoder and an decoder
+        # Map activation function string to torch module
+        activation_map = {
+            "relu": nn.ReLU(),
+            "tanh": nn.Tanh(),
+            "sigmoid": nn.Sigmoid()
+        }
+        activation = activation_map.get(activation_func, nn.ReLU())
+        
+        # The autoencoder is separated in an encoder and a decoder
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, h_layer_1_dim),
-            nn.LeakyReLU(),
+            activation,
             nn.Linear(h_layer_1_dim, h_layer_2_dim),
-            nn.LeakyReLU(),
+            activation,
             nn.Linear(h_layer_2_dim, latent_dim),
-            nn.LeakyReLU()
+            activation
         )
         
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, h_layer_2_dim),
-            nn.LeakyReLU(),
+            activation,
             nn.Linear(h_layer_2_dim, h_layer_1_dim),
-            nn.LeakyReLU(),
+            activation,
             nn.Linear(h_layer_1_dim, input_dim)
         )
         
@@ -82,40 +91,42 @@ def test(dataloader, model, loss_fn, device, prints=False):
         
     return test_loss
     
-def objective_initializer(train_scaled, test_scaled, column_names, scaling, prints = False):
-    
+def objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False):
     def objective(trial):
         # set the device to train on
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
         # hyperparameters
-        compression_ratio = trial.suggest_categorial("compression_ratio", [0.25, 0.5, 0.75])
+        compression_ratio = trial.suggest_categorical("compression_ratio", [0.33, 0.5])
         lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
         batch_size = trial.suggest_categorical("batch_size", [2, 4, 8, 16, 32, 64])
-        l2 = trial.suggest_categorical("l2", [2**i for i in range(9)]) # TODO implement l2 regularization
-        activation_func = trial.suggest_categorical("activation_func", ["relu", "tanh", "sigmoid"]) # TODO implement hyperparameter tuning for activation func
+        l2 = trial.suggest_categorical("l2", [2**i for i in range(9)])
+        activation_func = trial.suggest_categorical("activation_func", ["relu", "tanh", "sigmoid"])
         
         model = Autoencoder(
             len(column_names), 
-            min(int(len(column_names) * compression_ratio), 2)
-            ).to(device)
+            min(int(len(column_names) * compression_ratio), 2),
+            activation_func=activation_func
+        ).to(device)
         
         loss_fn = nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr) # TODO think about optimizer choice
+        optimizer = torch.optim.Adam(model.parameters(), 
+                                     lr=lr,
+                                     weight_decay=0,)
         
         # Convert to tensors if not already
-        train_scaled = torch.tensor(train_scaled, dtype=torch.float32)
-        test_scaled = torch.tensor(test_scaled, dtype=torch.float32)
+        train_tensor = torch.tensor(train_scaled, dtype=torch.float32)
+        test_tensor = torch.tensor(test_scaled, dtype=torch.float32)
         
-        # Load the dataset
-        dataset_train = TensorDataset(train_scaled, train_scaled)
+        # Load the datasets
+        dataset_train = TensorDataset(train_tensor, train_tensor)
         train_dataloader = DataLoader(
             dataset_train,
             batch_size=batch_size,
             shuffle=True
         )
         
-        dataset_test = TensorDataset(test_scaled, test_scaled)
+        dataset_test = TensorDataset(test_tensor, test_tensor)
         test_dataloader = DataLoader(
             dataset_test,
             batch_size=batch_size,
@@ -124,7 +135,7 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
         
         # Start training
         epochs = 5
-        for t in range(epochs):
+        for _ in range(epochs):
             train_batch(train_dataloader, model, loss_fn, optimizer, device, prints=False)
             
         test_loss = test(test_dataloader, model, loss_fn, device, prints=False)
@@ -132,22 +143,32 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
     
     return objective
 
-def train_AE(train_scaled, test_scaled, column_names, scaling, prints = False):
+def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, prints = False):
     # set the device to train on
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     
     if prints:
         print(f"Training using {device}\n")
     
-    model = Autoencoder(len(column_names), int(len(column_names)/3)).to(device)
+    # Set parameters
+    compression_ratio = parameters["compression_ratio"]
+    lr = parameters["lr"]
+    batch_size = parameters["batch_size"]
+    l2 = parameters["l2"]
+    activation_func = parameters["activation_func"]
+    
+    model = Autoencoder(
+            len(column_names), 
+            min(int(len(column_names) * compression_ratio), 2),
+            activation_func=activation_func
+        ).to(device)
     if prints:
         print("Model:\n", model, "\n\n")
-        
-    # TODO Loss function for reconstruction
-    loss_fn = nn.MSELoss()
     
-    # TODO Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), 
+                                 lr=lr,
+                                 weight_decay=0)
     
     # Convert to tensors if not already
     train_scaled = torch.tensor(train_scaled, dtype=torch.float32)
@@ -157,14 +178,14 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, prints = False):
     dataset_train = TensorDataset(train_scaled, train_scaled)
     train_dataloader = DataLoader(
         dataset_train,
-        batch_size=32,  # TODO Set batch size for hyperparameter tuning
+        batch_size=batch_size,
         shuffle=True
     )
     
     dataset_test = TensorDataset(test_scaled, test_scaled)
     test_dataloader = DataLoader(
         dataset_test,
-        batch_size=32,
+        batch_size=batch_size,
         shuffle=False
     )
     
@@ -175,6 +196,13 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, prints = False):
         train_batch(train_dataloader, model, loss_fn, optimizer, device, prints=prints)
         test(test_dataloader, model, loss_fn, device)
     print("\nDone training!\n")
+    
+    # Save the trained model
+    model_dir = "model"
+    os.makedirs(model_dir, exist_ok=True)
+    torch.save(model.state_dict(), os.path.join(model_dir, "autoencoder.pth"))
+    
+    return os.path.join(model_dir, "autoencoder.pth")
     
     # Show example data rows and their output
     # Get 5 random rows from the test data
@@ -248,20 +276,28 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, prints = False):
         
         table_data = [[k, f"{anomalous_data_reversed[j]:.4f}", f"{anomalous_output_reversed[j]:.4f}"] for j, k in enumerate(column_names)]
         print(tabulate(table_data, headers=["Feature", "Anomalous Input", "Reconstructed"], tablefmt="grid"))
-    
-if __name__ == "__main__":
-    train_scaled, test_scaled, scaling, column_names = read_and_prepare_data("ov_1", prints=False)
-    
+        
+def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names):
     # Hyperparameter tuning
     # Create and optimize study
-    # TODO include missing hyperparameters and implement l2 regularization
-    # TODO check for further hyperparameters to include
     study = optuna.create_study(direction="minimize")
     study.optimize(objective_initializer, n_trials=50)
     
     print("Best hyperparameters:", study.best_params)
     
-    # TODO use found hyperparameters in final training step
+    # Return the path to the model file location
+    return train_AE(train_scaled, test_scaled, column_names, scaling, study.best_params, prints=True)
+    
+if __name__ == "__main__":
+    train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data("ov_1", prints=False)
+    
+    # Hyperparameter tuning
+    # Create and optimize study
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective_initializer, n_trials=50)
+    
+    print("Best hyperparameters:", study.best_params)
+    
     train_AE(train_scaled, test_scaled, column_names, scaling, prints=True)
     
     # TODO implement synthetic anomaly generation and check for precision on those
