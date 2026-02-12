@@ -4,3 +4,5 @@
 Data/Object Detection Dataset
 *.parquet
 .tmp
+.pyc
+.pth

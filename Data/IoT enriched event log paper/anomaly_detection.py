@@ -1,25 +1,110 @@
 from pytorch_autoencoder import create_AE
 from autoencoder_data_preparation import read_and_prepare_data
 import torch
+import torch.nn as nn
 import numpy as np
+import os
+from tabulate import tabulate
+from sklearn.ensemble import IsolationForest
+
 
 def detect_anomalies(resource: str, train_model: bool = True):
-    train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data("ov_1", prints=False)
+    train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, prints=False)
     
     # TODO implement behaviour to just load model if it has been already trained
-    model_location = create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names)
+    if train_model:
+        model_location = create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names)
+        
+    model_location = os.path.join("model", "autoencoder.pth")
+    model = torch.load(model_location, weights_only=False)
     
-    model = torch.load(model_location)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
     
     # TODO define the threshold for the loss, from where on it is considered as an anomaly
-    treshold = 0
+    train_tensor = torch.tensor(train_scaled, dtype=torch.float32).to(device)
+
+    criterion = nn.MSELoss()
+
+    with torch.no_grad():
+        train_reconstructed = model(train_tensor)
+        train_losses = criterion(train_reconstructed, train_tensor).cpu().numpy()
+
+    treshold = np.percentile(train_losses, 99.9)  # Set threshold as the 99.9th percentile of the training losses
+    print("\n Treshold: ", treshold, "\n\n")
     
     # TODO get the data with synthetic anomalies, perform anomaly detection on it and then display valuable information like precision, false negatives, percentage of anomalies in data
+    #! Metrics calculation maybe false
+    val_anomalous, anomaly_indices = add_synthetic_anomalies(val_scaled, train_scaled, column_names)
+
+    val_anomalous_tensor = torch.tensor(val_anomalous, dtype=torch.float32).to(device)
+
+    model.eval()
+    with torch.no_grad():
+        reconstructed = model(val_anomalous_tensor)
+        losses = torch.mean((reconstructed - val_anomalous_tensor) ** 2, dim=1).cpu().numpy()  # Calculate per-sample loss
+
+    anomalies = losses > treshold
+    detected_anomaly_indices = np.where(anomalies)[0]
+    print(f"Detected {np.sum(anomalies)} anomalies out of {len(val_anomalous)} samples")
     
+    # Calculate metrics
+    true_positives = np.sum(np.isin(detected_anomaly_indices, anomaly_indices))
+    false_positives = np.sum(~np.isin(detected_anomaly_indices, anomaly_indices))
+    false_negatives = len(anomaly_indices) - true_positives
+    true_negatives = (
+    len(val_anomalous)
+    - true_positives
+    - false_positives
+    - false_negatives
+)
+
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    recall = true_positives / len(anomaly_indices) if len(anomaly_indices) > 0 else 0
+    anomaly_percentage = (len(anomaly_indices) / len(val_anomalous)) * 100
+
+    print(f"Precision: {precision:.4f}")
+    print(f"True Positives: {true_positives}")
+    print(f"False Positives: {false_positives}") 
+    print(f"False Negatives: {false_negatives}")
+    print(f"True Negatives: {true_negatives}")
+    print(f"Recall: {recall:.4f}")
+    print(f"Anomaly Percentage in Data: {anomaly_percentage:.2f}%")
     
-def add_synthetic_anomalies(val_scaled, column_names):
+    # Show example anomalous data rows and their output
+
+    random_indices = np.random.choice(detected_anomaly_indices, min(5, len(detected_anomaly_indices)), replace=False)
+
+    for idx, row_idx in enumerate(random_indices):
+        anomalous_data = val_anomalous[row_idx]
+        is_anomaly = row_idx in anomaly_indices
+        loss = losses[row_idx]
+        
+        # Reverse the scaling
+        anomalous_data_reversed = scaling.inverse_transform([anomalous_data])[0]
+        
+        # Get model output
+        anomalous_tensor = torch.tensor([anomalous_data], dtype=torch.float32).to(device)
+        with torch.no_grad():
+            anomalous_output_tensor = model(anomalous_tensor)
+            anomalous_output = anomalous_output_tensor.cpu().numpy()[0]
+        
+        anomalous_output_reversed = scaling.inverse_transform([anomalous_output])[0]
+        
+        # Determine if detected as anomaly
+        detected = loss > treshold
+        
+        print(f"\nRow {idx+1}:")
+        print(f"True Anomaly: {is_anomaly}, Detected as Anomaly: {detected}, Loss: {loss:.8f}")
+        
+        table_data = [[col, f"{anomalous_data_reversed[i]:.4f}", f"{anomalous_output_reversed[i]:.4f}"] 
+                      for i, col in enumerate(column_names)]
+        print(tabulate(table_data, headers=["Feature", "Initial Unscaled", "Reconstructed Unscaled"], tablefmt="grid"))
+    
+def add_synthetic_anomalies(val_scaled, train_scaled, column_names):
     num_rows = len(val_scaled)
-    num_anomalies = int(np.ceil(num_rows * 0.05))
+    num_anomalies = int(np.ceil(num_rows * 0.5))
     anomaly_indices = np.random.choice(num_rows, num_anomalies, replace=False)
     
     non_event_indices = [i for i, col in enumerate(column_names) if "event" not in col]
@@ -29,11 +114,58 @@ def add_synthetic_anomalies(val_scaled, column_names):
         while unchanged_indices:
             # Modify anomaly
             col_idx = np.random.choice(unchanged_indices)
-            val_scaled[idx, col_idx] = 0 # TODO use the correct anomaly value here
+            original_value = val_scaled[idx, col_idx]
+            col_min, col_max = train_scaled[:, col_idx].min().item(), train_scaled[:, col_idx].max().item()
+            anomalous_value = col_max if original_value < (col_min + col_max) / 2 else col_min
+            val_scaled[idx, col_idx] = anomalous_value
             unchanged_indices.remove(col_idx)
             
             # with 5% probability change another column
-            if np.random.random() < 0.05:
+            if np.random.random() < 0.1:
                 break
 
-    return val_scaled
+    return val_scaled, anomaly_indices
+
+def detect_using_random_forest(resource: str):
+    train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, prints=False)
+        
+    # Train Isolation Forest on training data
+    iso_forest = IsolationForest(contamination=0.1, random_state=42)
+    iso_forest.fit(train_scaled)
+    
+    # Add synthetic anomalies to validation data
+    val_anomalous, anomaly_indices = add_synthetic_anomalies(val_scaled, train_scaled, column_names)
+    
+    # Get anomaly scores and predictions
+    val_scores = iso_forest.decision_function(val_anomalous)
+    anomalies = iso_forest.predict(val_anomalous) == -1
+    detected_anomaly_indices = np.where(anomalies)[0]
+    
+    print(f"Detected {np.sum(anomalies)} anomalies out of {len(val_anomalous)} samples")
+    
+    # Calculate metrics
+    true_positives = np.sum(np.isin(detected_anomaly_indices, anomaly_indices))
+    false_positives = np.sum(~np.isin(detected_anomaly_indices, anomaly_indices))
+    false_negatives = len(anomaly_indices) - true_positives
+    true_negatives = len(val_anomalous) - true_positives - false_positives - false_negatives
+    
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    recall = true_positives / len(anomaly_indices) if len(anomaly_indices) > 0 else 0
+    anomaly_percentage = (len(anomaly_indices) / len(val_anomalous)) * 100
+    
+    print(f"Precision: {precision:.4f}")
+    print(f"True Positives: {true_positives}")
+    print(f"False Positives: {false_positives}")
+    print(f"False Negatives: {false_negatives}")
+    print(f"True Negatives: {true_negatives}")
+    print(f"Recall: {recall:.4f}")
+    print(f"Anomaly Percentage in Data: {anomaly_percentage:.2f}%")
+
+    if prints: 
+        call(true_negatives, true_positives)
+
+if __name__ == "__main__":
+    detect_anomalies("hbw_1", train_model=True)
+    print("\n\n")
+    detect_using_random_forest("hbw_1")
+    #TODO check if hyperparameter tuning over F1/F2 score, check how to correctly create anomalies, maybe dropout, maybe bigger latent space
