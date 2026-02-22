@@ -9,20 +9,18 @@ from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 
 
-def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, train_model: bool = False):
+def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model: bool = False, redo_hyperparameter_tuning:bool = False):
     
-    # TODO implement behaviour to just load model if it has been already trained
-    if train_model:
-        model_location = create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names)
+    if train_model or not os.path.exists(os.path.join("model", "autoencoder.pth")):
+        model_location = create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, tune_hyperparameters=redo_hyperparameter_tuning)
         
-    model_location = os.path.join("model", "autoencoder.pth")
+    model_location = os.path.join("model", resource + "_autoencoder.pth")
     model = torch.load(model_location, weights_only=False)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()
     
-    # TODO define the threshold for the loss, from where on it is considered as an anomaly
     train_tensor = torch.tensor(train_scaled, dtype=torch.float32).to(device)
 
     criterion = nn.MSELoss()
@@ -34,7 +32,6 @@ def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_name
     treshold = np.percentile(train_losses, 99.9)  # Set threshold as the 99.9th percentile of the training losses
     print("\n Treshold: ", treshold, "\n\n")
     
-    # TODO get the data with synthetic anomalies, perform anomaly detection on it and then display valuable information like precision, false negatives, percentage of anomalies in data
     #! Metrics calculation maybe false
     val_anomalous, anomaly_indices = add_synthetic_anomalies(val_scaled, train_scaled, column_names)
 
@@ -63,6 +60,9 @@ def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_name
     precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
     recall = true_positives / len(anomaly_indices) if len(anomaly_indices) > 0 else 0
     anomaly_percentage = (len(anomaly_indices) / len(val_anomalous)) * 100
+    
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    f2_score = 5 * (precision * recall) / (4 * precision + recall) if (4 * precision + recall) > 0 else 0
 
     print(f"Precision: {precision:.4f}")
     print(f"True Positives: {true_positives}")
@@ -71,8 +71,12 @@ def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_name
     print(f"True Negatives: {true_negatives}")
     print(f"Recall: {recall:.4f}")
     print(f"Anomaly Percentage in Data: {anomaly_percentage:.2f}%")
+    print(f"F1 Score: {f1_score:.4f}")
+    print(f"F2 Score: {f2_score:.4f}")
     
-    # Show example anomalous data rows and their output
+    return precision, recall, f1_score, f2_score
+    
+    # Show example anomalous data rows and their output (skipped)
 
     random_indices = np.random.choice(detected_anomaly_indices, min(5, len(detected_anomaly_indices)), replace=False)
 
@@ -152,6 +156,9 @@ def detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling
     recall = true_positives / len(anomaly_indices) if len(anomaly_indices) > 0 else 0
     anomaly_percentage = (len(anomaly_indices) / len(val_anomalous)) * 100
     
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    f2_score = 5 * (precision * recall) / (4 * precision + recall) if (4 * precision + recall) > 0 else 0
+    
     print(f"Precision: {precision:.4f}")
     print(f"True Positives: {true_positives}")
     print(f"False Positives: {false_positives}")
@@ -159,6 +166,11 @@ def detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling
     print(f"True Negatives: {true_negatives}")
     print(f"Recall: {recall:.4f}")
     print(f"Anomaly Percentage in Data: {anomaly_percentage:.2f}%")
+    print(f"F1 Score: {f1_score:.4f}")
+    print(f"F2 Score: {f2_score:.4f}")
+    
+    return precision, recall, f1_score, f2_score
+    
     
 def detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names):
         
@@ -184,6 +196,9 @@ def detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val
     precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
     recall = true_positives / len(anomaly_indices) if len(anomaly_indices) > 0 else 0
     anomaly_percentage = (len(anomaly_indices) / len(val_anomalous)) * 100
+    
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    f2_score = 5 * (precision * recall) / (4 * precision + recall) if (4 * precision + recall) > 0 else 0
         
     print(f"Precision: {precision:.4f}")
     print(f"True Positives: {true_positives}")
@@ -192,10 +207,14 @@ def detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val
     print(f"True Negatives: {true_negatives}")
     print(f"Recall: {recall:.4f}")
     print(f"Anomaly Percentage in Data: {anomaly_percentage:.2f}%")
+    print(f"F1 Score: {f1_score:.4f}")
+    print(f"F2 Score: {f2_score:.4f}")
+    
+    return precision, recall, f1_score, f2_score
 
 if __name__ == "__main__":
     train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data("hbw_1", prints=False)
-    detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, train_model=False)
+    detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, "hbw_1", train_model=False)
     print("\n\n")
     detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling, column_names)
     detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names)
