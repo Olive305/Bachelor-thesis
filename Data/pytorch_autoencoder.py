@@ -3,12 +3,8 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
 
-from autoencoder_data_preparation import read_and_prepare_data
 import numpy as np
-from tabulate import tabulate
 
 import optuna
 import os

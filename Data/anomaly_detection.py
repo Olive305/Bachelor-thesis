@@ -1,5 +1,5 @@
-from pytorch_autoencoder import create_AE
-from autoencoder_data_preparation import read_and_prepare_data
+from .pytorch_autoencoder import create_AE
+from .autoencoder_data_preparation import read_and_prepare_data
 import torch
 import torch.nn as nn
 import numpy as np
