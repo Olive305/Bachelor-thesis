@@ -1,12 +1,15 @@
 from Data.anomaly_detection import detect_anomalies, detect_using_isolation_forest, detect_using_one_class_support_vector_machine
 from Data.autoencoder_data_preparation import read_and_prepare_data
 from Data.pytorch_autoencoder import create_AE
+import tabulate
+import os
+import pandas as pd
 
 if __name__ == "__main__":
     
     # Ask for which resources anomaly detection should be performed
     resources = []
-    all_resources = [] #! Fill with all possible resources
+    all_resources = ["hbw_1"] #! Fill with all possible resources
     user_input = input("Do you want to perform anomaly detection on all resources (workstations)? (y/n):\n")
     if user_input.lower() == 'y':
         resources = all_resources
@@ -52,3 +55,26 @@ if __name__ == "__main__":
         print("Performing anomaly detection using baseline techniques...\n")
         if_precision, if_recall, if_f1_score, if_f2_score = detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling, column_names)
         svm_precision, svm_recall, svm_f1_score, svm_f2_score = detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names)
+        
+        # Create metrics table
+        metrics_data = {
+            'Metric': ['Precision', 'Recall', 'F1-Score', 'F2-Score', 'Threshold'],
+            'Autoencoder': [precision, recall, f1_score, f2_score, treshold],
+            'Isolation Forest': [if_precision, if_recall, if_f1_score, if_f2_score, ''],
+            'One-Class SVM': [svm_precision, svm_recall, svm_f1_score, svm_f2_score, '']
+        }
+
+        # Display table in console
+        print(tabulate.tabulate(metrics_data, headers='keys', tablefmt='grid'))
+        print("\n")
+
+        # Export to Excel
+
+        output_dir = "anomaly_detection_metrics"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        df = pd.DataFrame(metrics_data)
+        output_file = os.path.join(output_dir, f"{resource}_metrics_table.xlsx")
+        df.to_excel(output_file, index=False)
+        print(f"Metrics table exported to {output_file}\n")
