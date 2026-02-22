@@ -41,11 +41,14 @@ if __name__ == "__main__":
 
     for resource in resources:
         # Get the data
+        print(f"Performing Anomaly detection on resource {resource}...\n\n", "Loading preprepared data...\n" if reread_prepared_data else "Readinga and preparing data...\n")
         train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, load_preprepared=reread_prepared_data, prints=False)
         
         # Perform anomaly detection on the data
-        precision, recall, f1_score, f2_score = detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning)
+        print("Performing anomaly detection on the data...\n")
+        precision, recall, f1_score, f2_score, treshold = detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning)
         
         # Perform anomaly detection on the data using baseline models for comparison
+        print("Performing anomaly detection using baseline techniques...\n")
         if_precision, if_recall, if_f1_score, if_f2_score = detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling, column_names)
         svm_precision, svm_recall, svm_f1_score, svm_f2_score = detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names)
