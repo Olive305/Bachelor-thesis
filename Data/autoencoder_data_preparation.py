@@ -29,7 +29,7 @@ def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
         raise ValueError("Resource must be a non-empty string")
     
     # Get file location
-    parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
+    parquet_directory = os.path.join(os.getcwd(), "Data", "20130794", "Cleaned Event Log", "parquet")
     file_location = os.path.join(parquet_directory, "all_combined_with_synthetic.parquet")
     
     if not os.path.exists(file_location):
@@ -274,8 +274,8 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print("\n\n")
         
     # Split the dataframe into train, validation, and test sets
-    train, test = train_test_split(wide, test_size=0.2, random_state=69)
-    val, test = train_test_split(test, test_size=0.5, random_state=69)
+    train, test = train_test_split(wide, test_size=0.2, random_state=42)
+    val, test = train_test_split(test, test_size=0.5, random_state=42)
 
     if prints:
         print(f"Training set size: {len(train)}\n")
@@ -384,20 +384,20 @@ def load_preprepared_data(resource:str, prints:bool = False):
 def read_and_prepare_data(resource: str, load_preprepared:bool = True, prints:bool = False):
     if load_preprepared:
         if prints:
-            print("Loading already prepared data\n\n")
+            print("Loading already prepared data...\n")
         try:
             return load_preprepared_data(resource, prints=prints)
         except FileNotFoundError:
             if prints:
-                print("Prepared data not found. Creating new data...\n\n")
+                print("Prepared data not found. Creating new data...\n")
     
     if prints:
-        print("Reading Data:\n\n")
+        print("Reading Data:\n")
     
     df = read_data(resource, prints=prints)
     
     if prints:
-        print("Preparing Data:\n\n")
+        print("Preparing Data:\n")
     
     train_scaled, test_scaled, val_scaled, scaler, column_names = prepare_data(df, prints=prints)
     save_preprepared_data(resource, train_scaled, test_scaled, val_scaled, scaler, column_names, prints=prints)

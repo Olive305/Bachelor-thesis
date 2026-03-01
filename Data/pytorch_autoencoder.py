@@ -5,9 +5,29 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 import numpy as np
+import random
 
 import optuna
 import os
+
+RANDOM_SEED = 42
+
+
+def set_random_seed(seed: int = RANDOM_SEED):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    if torch.backends.cudnn.is_available():
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+set_random_seed(RANDOM_SEED)
 
 # Defining the autoencoder
 class Autoencoder(nn.Module):
@@ -91,6 +111,8 @@ def test(dataloader, model, loss_fn, device, prints=False):
     
 def objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False):
     def objective(trial):
+        set_random_seed(RANDOM_SEED)
+
         # set the device to train on
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
@@ -118,10 +140,12 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
         
         # Load the datasets
         dataset_train = TensorDataset(train_tensor, train_tensor)
+        train_generator = torch.Generator().manual_seed(RANDOM_SEED)
         train_dataloader = DataLoader(
             dataset_train,
             batch_size=batch_size,
-            shuffle=True
+            shuffle=True,
+            generator=train_generator
         )
         
         dataset_test = TensorDataset(test_tensor, test_tensor)
@@ -158,6 +182,8 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
     return objective
 
 def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resource: str, prints:bool = False):
+    set_random_seed(RANDOM_SEED)
+
     # set the device to train on
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     
@@ -190,10 +216,12 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     
     # Load the dataset
     dataset_train = TensorDataset(train_scaled, train_scaled)
+    train_generator = torch.Generator().manual_seed(RANDOM_SEED)
     train_dataloader = DataLoader(
         dataset_train,
         batch_size=batch_size,
-        shuffle=True
+        shuffle=True,
+        generator=train_generator
     )
     
     dataset_test = TensorDataset(test_scaled, test_scaled)
@@ -249,8 +277,9 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
     
     if tune_hyperparameters:
         # Hyperparameter tuning with Optuna
-        study = optuna.create_study(direction="minimize")
-        study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=2)
+        sampler = optuna.samplers.BaseSampler(seed=RANDOM_SEED)
+        study = optuna.create_study(direction="minimize", sampler=sampler)
+        study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=1)
         best_params = study.best_params
         print("Best hyperparameters:", best_params)
         
@@ -264,8 +293,9 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
         else:
             # File doesn't exist, run Optuna to create hyperparameters
             print(f"Hyperparameters file not found at {hyperparams_file}. Running Optuna tuning...")
-            study = optuna.create_study(direction="minimize")
-            study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=2)
+            sampler = optuna.samplers.BaseSampler(seed=RANDOM_SEED)
+            study = optuna.create_study(direction="minimize", sampler=sampler)
+            study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=1)
             best_params = study.best_params
             print("Best hyperparameters:", best_params)
             

@@ -1,5 +1,5 @@
 from Data.anomaly_detection import detect_anomalies, detect_using_isolation_forest, detect_using_one_class_support_vector_machine
-from Data.autoencoder_data_preparation import read_and_prepare_data
+from Data.autoencoder_data_preparation import read_and_prepare_data 
 import tabulate
 import os
 import pandas as pd
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     
     # Ask, if the training data should be loaded from all the data again and then prepared
     user_input = input("Do you want to load and prepare training data from scratch? (y/n):\n")
-    reread_prepared_data = user_input.lower() == 'y'
+    reread_prepared_data = not user_input.lower() == 'y'
     print("\n")
     
     # Ask, if the autoencoder should be retrained
@@ -40,20 +40,20 @@ if __name__ == "__main__":
         user_input = input("Do you want to redo the hyperparameter tuning? (y/n)\nWARNING: Redoing hyperparameter tuning takes a long time.\n")
         redo_hyperparameter_tuning = user_input.lower() == 'y'
         print("\n")
-
+        
     for resource in resources:
         # Get the data
-        print(f"Performing Anomaly detection on resource {resource}...\n\n", "Loading preprepared data...\n" if reread_prepared_data else "Readinga and preparing data...\n")
+        print(f"Performing Anomaly detection on resource {resource}...\n\n" + ("Loading preprepared data...\n" if reread_prepared_data else "Reading and preparing data...\n"))
         train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, load_preprepared=reread_prepared_data, prints=False)
         
         # Perform anomaly detection on the data
         print("Performing anomaly detection on the data...\n")
-        precision, recall, f1_score, f2_score, treshold = detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning)
+        precision, recall, f1_score, f2_score, treshold = detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning, prints=True)
         
         # Perform anomaly detection on the data using baseline models for comparison
         print("Performing anomaly detection using baseline techniques...\n")
-        if_precision, if_recall, if_f1_score, if_f2_score = detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling, column_names)
-        svm_precision, svm_recall, svm_f1_score, svm_f2_score = detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names)
+        if_precision, if_recall, if_f1_score, if_f2_score = detect_using_isolation_forest(train_scaled, test_scaled, val_scaled, scaling, column_names, prints=True)
+        svm_precision, svm_recall, svm_f1_score, svm_f2_score = detect_using_one_class_support_vector_machine(train_scaled, test_scaled, val_scaled, scaling, column_names, prints=True)
         
         # Create metrics table
         metrics_data = {

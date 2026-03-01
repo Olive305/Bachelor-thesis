@@ -1,5 +1,5 @@
-from .pytorch_autoencoder import create_AE
-from .autoencoder_data_preparation import read_and_prepare_data
+from Data.pytorch_autoencoder import create_AE
+from Data.autoencoder_data_preparation import read_and_prepare_data
 import torch
 import torch.nn as nn
 import numpy as np
@@ -9,17 +9,21 @@ from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 
 
+RANDOM_SEED = 42
+np.random.seed(RANDOM_SEED)
+
+
 def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, train_model: bool = False, redo_hyperparameter_tuning:bool = False, prints: bool = False):
     
     # Train the model, if training is required or if the file doesnt exist
-    if train_model or not os.path.exists(os.path.join("model", "autoencoder.pth")):
+    if train_model or not os.path.exists(os.path.join("model", resource + "_autoencoder.pth")):
         if prints:
-            print("Training autoencoder model", " since model file hasn't been found...\n" if not os.path.exists(os.path.join("model", "autoencoder.pth")) else "...\n")
+            print("Training autoencoder model" + (" since model file hasn't been found...\n" if not os.path.exists(os.path.join("model", resource + "autoencoder.pth")) else "...\n"))
         model_location = create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, resource, tune_hyperparameters=redo_hyperparameter_tuning)
         
     # Load the trained model
     model_location = os.path.join("model", resource + "_autoencoder.pth")
-    model = torch.load(model_location, weights_only=False)
+    model = torch.load(model_location, weights_only=False, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     
     # Perform anomaly detection on the modified validation set
     if prints:

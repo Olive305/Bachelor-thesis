@@ -9,6 +9,10 @@ from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 
 
+RANDOM_SEED = 42
+np.random.seed(RANDOM_SEED)
+
+
 def detect_anomalies(train_scaled, test_scaled, val_scaled, scaling, column_names, train_model: bool = False):
     
     # TODO implement behaviour to just load model if it has been already trained

@@ -4,6 +4,10 @@ import pandas as pd
 import random
 
 
+RANDOM_SEED = 42
+random.seed(RANDOM_SEED)
+
+
 # Directory with parquet files
 parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
 input_file = os.path.join(parquet_directory, "all_combined_new.parquet")
