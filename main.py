@@ -1,3 +1,6 @@
+import sys
+import Data.pytorch_autoencoder as pytorch_autoencoderz
+sys.modules["pytorch_autoencoder"] = pytorch_autoencoder
 from Data.anomaly_detection import detect_anomalies, detect_using_isolation_forest, detect_using_one_class_support_vector_machine
 from Data.autoencoder_data_preparation import read_and_prepare_data 
 import tabulate
