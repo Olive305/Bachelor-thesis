@@ -11,7 +11,7 @@ if __name__ == "__main__":
     
     # Ask for which resources anomaly detection should be performed
     resources = []
-    all_resources = ["hbw_1"] #! Fill with all possible resources
+    all_resources = ["hbw_1", "hbw_2", "mm_1", "sm_1", "wt_2", "ov_1", "vgr_1", "ov_2", "mm_2", "dm_2", "pm_1", "wt_1", "sm_2", "vgr_2", "hw_1"]
     user_input = input("Do you want to perform anomaly detection on all resources (workstations)? (y/n):\n")
     if user_input.lower() == 'y':
         resources = all_resources
