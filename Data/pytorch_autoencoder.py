@@ -263,9 +263,10 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     # Save the trained model
     model_dir = "model"
     os.makedirs(model_dir, exist_ok=True)
-    torch.save(model, os.path.join(model_dir, resource+"_autoencoder.pth"))
+    model_path = os.path.join(model_dir, resource + "_autoencoder.pth")
+    torch.save(model, model_path)
     
-    return os.path.join(model_dir, "autoencoder.pth")
+    return model_path
             
 def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, resource: str, tune_hyperparameters: bool = False):
     print("Current accelerator:", torch.accelerator.current_accelerator())
@@ -277,9 +278,9 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
     
     if tune_hyperparameters:
         # Hyperparameter tuning with Optuna
-        sampler = optuna.samplers.BaseSampler(seed=RANDOM_SEED)
+        sampler = optuna.samplers.TPESampler(seed=RANDOM_SEED)
         study = optuna.create_study(direction="minimize", sampler=sampler)
-        study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=1)
+        study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
         best_params = study.best_params
         print("Best hyperparameters:", best_params)
         
@@ -293,9 +294,9 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
         else:
             # File doesn't exist, run Optuna to create hyperparameters
             print(f"Hyperparameters file not found at {hyperparams_file}. Running Optuna tuning...")
-            sampler = optuna.samplers.BaseSampler(seed=RANDOM_SEED)
+            sampler = optuna.samplers.TPESampler(seed=RANDOM_SEED)
             study = optuna.create_study(direction="minimize", sampler=sampler)
-            study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=32, n_jobs=1)
+            study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
             best_params = study.best_params
             print("Best hyperparameters:", best_params)
             
