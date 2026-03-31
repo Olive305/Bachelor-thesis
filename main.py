@@ -448,4 +448,39 @@ if __name__ == "__main__":
             print(tabulate.tabulate(comparison, headers=["Column", "Original", "Reconstruction"]))
             
             
-    
+    # Load and display hyperparameters from the hyperparameters folder
+    hyperparameters_dir = "hyperparameters"
+    hyperparams_table = []
+
+    if os.path.exists(hyperparameters_dir):
+        for resource in all_resources:
+            param_file = os.path.join(hyperparameters_dir, f"{resource}_hyperparameters.npy")
+            if os.path.exists(param_file):
+                params = np.load(param_file, allow_pickle=True).item()
+                hyperparams_table.append([resource, params])
+        
+        print(f"\n{'='*60}")
+        print("Hyperparameters per Resource")
+        print(f"{'='*60}\n")
+        
+        if hyperparams_table:
+            # Extract all unique parameter keys
+            all_keys = set()
+            for _, params in hyperparams_table:
+                all_keys.update(params.keys())
+            all_keys = sorted(list(all_keys))
+            
+            # Build table with resources as rows and parameters as columns
+            headers = ["Resource"] + all_keys
+            table_rows = []
+            for resource, params in hyperparams_table:
+                row = [resource]
+                for key in all_keys:
+                    row.append(params.get(key, "N/A"))
+                table_rows.append(row)
+            
+            print(tabulate.tabulate(table_rows, headers=headers))
+            
+            if STORE:
+                hyperparams_output_path = os.path.join(tables_dir, "hyperparameters.xlsx")
+                pd.DataFrame(table_rows, columns=headers).to_excel(hyperparams_output_path, index=False)

@@ -237,10 +237,12 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     delta = 0.0001
     best_loss = None
     no_improvement_count = 0
+    loss_history = []
     
     for epoch in range(epochs):
         train_batch(train_dataloader, model, loss_fn, optimizer, device, prints=False)
         current_loss = test(test_dataloader, model, loss_fn, device, prints=False)
+        loss_history.append(current_loss)
         
         # Early stopping logic
         if best_loss is None or current_loss < best_loss - delta:
@@ -259,6 +261,12 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     
     if prints:
         print("Done training!\n")
+    
+    # Save loss history
+    loss_dir = "loss_history"
+    os.makedirs(loss_dir, exist_ok=True)
+    loss_path = os.path.join(loss_dir, resource + "_loss_history.npy")
+    np.save(loss_path, np.array(loss_history))
     
     # Save the trained model
     model_dir = "model"
