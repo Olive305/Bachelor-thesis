@@ -9,7 +9,7 @@ random.seed(RANDOM_SEED)
 
 
 # Directory with parquet files
-parquet_directory = os.path.join(os.getcwd(), "Data", "IoT enriched event log paper", "20130794", "Cleaned Event Log", "parquet")
+parquet_directory = os.path.join(os.getcwd(), "Data", "20130794", "Cleaned Event Log", "parquet")
 input_file = os.path.join(parquet_directory, "all_combined_new.parquet")
 
 
@@ -75,7 +75,7 @@ min_temp_value = get_smallest_temperature_value()
 max_temp_value = get_largest_temperature_value()
 
 def synthetic_pressure_per_timestamp(timestamp, pressure):
-    # Synthetic value = pressure * temperature_distance 
+    # Synthetic value = pressure * temperature_distance^2 + temperature_distance * baseline
 
     # Get last recorded temperature value before or at the given timestamp
     # If that timestamp is before the first temperature reading, use a random temperature value between min_temp_value and max_temp_value (this one would be an anomaly)
@@ -89,11 +89,12 @@ def synthetic_pressure_per_timestamp(timestamp, pressure):
         # pick a random temperature within [min_temp_value, max_temp_value]
         temp_value = random.uniform(float(min_temp_value), float(max_temp_value))
     
-    # Calculate the synthetic value as difference of temperature to min_temp_value multiplied by pressure
+    # Calculate the synthetic value with squared temperature distance
     temperature_distance = float(temp_value) - float(min_temp_value) + 1  # +1 to avoid zero multiplication
-    synthetic_value = float(pressure) * float(temperature_distance)
+    baseline = float(min_temp_value)
+    synthetic_value = float(pressure) * (float(temperature_distance) ** 2) + (float(temperature_distance)**2) * baseline * (1 if float(pressure) > 0 else -1)
     
-    return synthetic_value
+    return abs(synthetic_value)
 
 
 # Register the function in DuckDB

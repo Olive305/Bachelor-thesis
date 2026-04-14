@@ -118,9 +118,9 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
 
         # hyperparameters
         compression_ratio = 0.5
-        lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+        lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
-        l2 = trial.suggest_float("l2", 1e-6, 1e-2, log=True)
+        l2 = trial.suggest_float("l2", 1e-5, 1e-2, log=True)
         activation_func = trial.suggest_categorical("activation_func", ["relu", "tanh", "sigmoid"])
         
         model = Autoencoder(

@@ -9,6 +9,9 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 import random
+import atexit
+import json
+import re
 
 STORE = True
 RANDOM_SEED = 42
@@ -111,7 +114,7 @@ if __name__ == "__main__":
         print(f"Performing Anomaly detection on resource {resource}...\n\n" + ("Loading preprepared data...\n" if reread_prepared_data else "Reading and preparing data...\n"))
         train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, load_preprepared=reread_prepared_data, prints=False)
         
-        val_anomalous, anomalous_values = add_synthetic_anomalies(val_scaled, train_scaled, column_names)
+        val_anomalous, anomalous_values, anomaly_types = add_synthetic_anomalies(val_scaled, train_scaled, test_scaled, column_names)
         
         # Perform anomaly detection on the data
         print("Performing anomaly detection on the data...\n")
@@ -132,6 +135,7 @@ if __name__ == "__main__":
             "column_names": column_names,
             "ae_reconstructions": reconstructions,                
             "scaling": scaling,
+            "anomaly_types": anomaly_types
         }
         
     # Calculate precision, recall and F1 per resource
@@ -200,10 +204,76 @@ if __name__ == "__main__":
     combined_headers = ["Method", "Precision", "Recall", "F1-Score"]
     combined_table_text = tabulate.tabulate(combined_table, headers=combined_headers)
     print(combined_table_text)
+    
+    if STORE:
+        combined_table_output_path = os.path.join(tables_dir, "combined_metrics.xlsx")
+        pd.DataFrame(combined_table, columns=combined_headers).to_excel(combined_table_output_path, index=False)
+
+    # Calculate metrics per anomaly type across all resources for all models
+    print(f"\n{'='*60}")
+    print("Results Per Anomaly Type")
+    print(f"{'='*60}\n")
+
+    for method_name, method_key in methods:
+        print(f"\n{'-'*60}")
+        print(f"{method_name}")
+        print(f"{'-'*60}\n")
+
+        anomaly_type_tp = defaultdict(int)
+        anomaly_type_fn = defaultdict(int)
+        anomaly_type_count = defaultdict(int)
+
+        for resource, data in all_results.items():
+            anomaly_types = data["anomaly_types"]
+            detected_rows = data[method_key]
+            detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
+
+            for row_id, anomaly_type in anomaly_types.items():
+                anomaly_type_count[anomaly_type] += 1
+                if row_id in detected_set:
+                    anomaly_type_tp[anomaly_type] += 1
+                else:
+                    anomaly_type_fn[anomaly_type] += 1
+
+        per_anomaly_table = []
+        all_anomaly_types = set(anomaly_type_tp.keys()) | set(anomaly_type_fn.keys()) | set(anomaly_type_count.keys())
+
+        for anomaly_type in sorted(all_anomaly_types):
+            tp = anomaly_type_tp[anomaly_type]
+            fn = anomaly_type_fn[anomaly_type]
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+            per_anomaly_table.append([anomaly_type, anomaly_type_count[anomaly_type], tp, fn, f"{recall:.3f}"])
+
+        per_anomaly_headers = ["Anomaly Type", "Count", "TP", "FN", "Recall"]
+        print(tabulate.tabulate(per_anomaly_table, headers=per_anomaly_headers))
+
+        if STORE:
+            method_file_name = method_key.replace("_detected", "") + "_per_anomaly_type_metrics.xlsx"
+            method_output_path = os.path.join(tables_dir, method_file_name)
+            pd.DataFrame(per_anomaly_table, columns=per_anomaly_headers).to_excel(method_output_path, index=False)
 
     # Show raw confusion-matrix counts side by side across methods.
     total_val_rows = sum(len(data["val_anomalous"]) for data in all_results.values())
     confusion_counts = {"TP": {}, "FP": {}, "TN": {}, "FN": {}}
+    confusion_headers = ["Count", "Autoencoder", "Isolation Forest", "SVM"]
+    confusion_output_path = os.path.join(tables_dir, "combined_confusion_matrix_counts.xlsx")
+    def _store_confusion_matrix_counts():
+        if not STORE:
+            return
+
+        rows = [
+            [
+                count_name,
+                confusion_counts[count_name].get("Autoencoder", 0),
+                confusion_counts[count_name].get("Isolation Forest", 0),
+                confusion_counts[count_name].get("SVM", 0),
+            ]
+            for count_name in ["TP", "FP", "TN", "FN"]
+        ]
+        pd.DataFrame(rows, columns=confusion_headers).to_excel(confusion_output_path, index=False)
+
+    atexit.register(_store_confusion_matrix_counts)
+
     for method_name, method_key in methods:
         total_tp = 0
         total_fp = 0
@@ -384,68 +454,222 @@ if __name__ == "__main__":
         print(f"\nStored result tables in '{tables_dir}'")
         
 
-    # Analyze example anomalies and normal cases with reconstructions
+    # Analyze reconstruction examples for one fixed resource (ov_1):
+    # - one true positive per anomaly type
+    # - one false negative
+    # - one false positive
     print(f"\n{'='*60}")
     print("Autoencoder Reconstruction Examples")
     print(f"{'='*60}\n")
-    
-    examples = {"TP": [], "FP": [], "FN": [], "TN": []}
-    
-    for resource, data in all_results.items():
+
+    example_resource = "ov_1"
+    if example_resource not in all_results:
+        print(f"Resource '{example_resource}' not found in selected resources. Skipping reconstruction examples.")
+    else:
+        data = all_results[example_resource]
+
+        all_anomaly_types = sorted(set(data["anomaly_types"].values()))
+        examples = {
+            "TP_BY_TYPE": {anomaly_type: None for anomaly_type in all_anomaly_types},
+            "FN": None,
+            "FP": None,
+        }
+
+        def _build_example(row_id, resource_data):
+            val_rows_reversed = resource_data["_val_rows_reversed"]
+            reconstructions_reversed = resource_data["_reconstructions_reversed"]
+            val_rows_scaled = resource_data["_val_rows_scaled"]
+            reconstructions_scaled = resource_data["_reconstructions_scaled"]
+
+            is_actual_anomaly = row_id in resource_data["anomalous_values"]
+            clean_original_reversed = resource_data["_val_scaled_clean_reversed"][row_id] if is_actual_anomaly else None
+
+            row_loss = float(np.mean((val_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2))
+            per_column_loss = (val_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2
+
+            return {
+                "resource": example_resource,
+                "row_id": row_id,
+                "original": val_rows_reversed[row_id],  # input row (possibly anomalous)
+                "clean_original": clean_original_reversed,  # from val_scaled (only for actual anomalies)
+                "reconstruction": reconstructions_reversed[row_id],
+                "column_names": resource_data["column_names"],
+                "anomaly_columns": list(resource_data["anomalous_values"].get(row_id, [])),
+                "anomaly_type": resource_data["anomaly_types"].get(row_id, "UNKNOWN_TYPE"),
+                "row_loss": row_loss,
+                "per_column_loss": per_column_loss,
+                "is_actual_anomaly": is_actual_anomaly,
+            }
+
+        # Precompute arrays only for ov_1
+        resource_scaling = data["scaling"]
+        data["_val_rows_scaled"] = to_numpy_2d(data["val_anomalous"])
+        data["_reconstructions_scaled"] = to_numpy_2d(data["ae_reconstructions"])
+        data["_val_rows_reversed"] = resource_scaling.inverse_transform(data["_val_rows_scaled"])
+        data["_reconstructions_reversed"] = resource_scaling.inverse_transform(data["_reconstructions_scaled"])
+
+        # Load clean validation rows (val_scaled) for "original data" comparison
+        _, _, val_scaled_clean, _, _ = read_and_prepare_data(example_resource, load_preprepared=reread_prepared_data, prints=False)
+        data["_val_scaled_clean_reversed"] = resource_scaling.inverse_transform(to_numpy_2d(val_scaled_clean))
+
         val_rows = data["val_anomalous"]
         anomalous_values = data["anomalous_values"]
+        anomaly_types = data["anomaly_types"]
         detected_rows = data["ae_detected"]
-        reconstructions = data["ae_reconstructions"]
-        column_names = data["column_names"]
-        resource_scaling = data["scaling"]
-
-        event_columns = extract_event_column_indices(column_names)
-        
-        val_rows_reversed = resource_scaling.inverse_transform(to_numpy_2d(val_rows))
-        reconstructions_reversed = resource_scaling.inverse_transform(to_numpy_2d(reconstructions))
-        
         detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
-        
-        for row_id in range(len(val_rows_reversed)):
+
+        # Seeded random selection of examples (reproducible across runs)
+        rng = random.Random(RANDOM_SEED)
+
+        tp_candidates_by_type = defaultdict(list)
+        fn_candidates = []
+        fp_candidates = []
+
+        for row_id in range(len(val_rows)):
             is_actual_anomaly = row_id in anomalous_values
             is_detected_anomaly = row_id in detected_set
-            
+
             if is_actual_anomaly and is_detected_anomaly:
-                category = "TP"
-            elif not is_actual_anomaly and is_detected_anomaly:
-                category = "FP"
+                anomaly_type = anomaly_types.get(row_id, "UNKNOWN_TYPE")
+                tp_candidates_by_type[anomaly_type].append(row_id)
             elif is_actual_anomaly and not is_detected_anomaly:
-                category = "FN"
-            else:
-                category = "TN"
-            
-            if len(examples[category]) < 3:
-                examples[category].append({
-                    "resource": resource,
-                    "row_id": row_id,
-                    "original": val_rows_reversed[row_id],
-                    "reconstruction": reconstructions_reversed[row_id],
-                    "column_names": column_names,
-                    "anomaly_columns": anomalous_values.get(row_id, [])
-                })
-    
-    for category in ["TP", "FP", "FN", "TN"]:
-        print(f"\n{category} Examples:")
-        for idx, example in enumerate(examples[category], 1):
-            print(f"\n  Example {idx} - Resource: {example['resource']}, Row ID: {example['row_id']}")
-            
-            anomaly_col_names = [example['column_names'][col_idx] for col_idx in example['anomaly_columns']]
+                fn_candidates.append(row_id)
+            elif not is_actual_anomaly and is_detected_anomaly:
+                fp_candidates.append(row_id)
+
+        def _normalize_row_id(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return value
+
+        for anomaly_type in all_anomaly_types:
+            candidates = tp_candidates_by_type.get(anomaly_type, [])
+            if candidates:
+                chosen_row = rng.choice(candidates)
+                examples["TP_BY_TYPE"][anomaly_type] = _build_example(chosen_row, data)
+
+        if fn_candidates:
+            examples["FN"] = _build_example(rng.choice(fn_candidates), data)
+
+        if fp_candidates:
+            examples["FP"] = _build_example(rng.choice(fp_candidates), data)
+
+        def _print_example(title, example):
+            print(f"\n{title}")
+            if example is None:
+                print("  No example found.")
+                return
+
+            print(f"  Resource: {example['resource']}, Row ID: {example['row_id']}, Anomaly Type: {example['anomaly_type']}")
+            print(f"  AE Loss (row MSE on scaled input vs reconstruction): {example['row_loss']:.6f}")
+
+            anomaly_col_names = [example["column_names"][col_idx] for col_idx in example["anomaly_columns"]]
             if anomaly_col_names:
-                print(f"  Anomaly columns: {', '.join(anomaly_col_names)}")
-            
+                print(f"  Anomaly columns: {', '.join(map(str, anomaly_col_names))}")
+
+            anomaly_col_set = set(example["anomaly_columns"])
             comparison = []
-            for col_idx, col_name in enumerate(example['column_names']):
-                original = example['original'][col_idx]
-                reconstruction = example['reconstruction'][col_idx]
-                is_anomaly = "⚠" if col_idx in example['anomaly_columns'] else ""
-                comparison.append([col_name + is_anomaly, f"{original:.4f}", f"{reconstruction:.4f}"])
-            
-            print(tabulate.tabulate(comparison, headers=["Column", "Original", "Reconstruction"]))
+            for col_idx, col_name in enumerate(example["column_names"]):
+                input_value = example["original"][col_idx]
+                reconstruction = example["reconstruction"][col_idx]
+                clean_value = example["clean_original"][col_idx] if example["clean_original"] is not None else None
+                column_loss = float(example["per_column_loss"][col_idx])
+                is_anomaly = " ⚠" if col_idx in anomaly_col_set else ""
+
+                comparison.append([
+                    f"{col_name}{is_anomaly}",
+                    f"{input_value:.4f}",
+                    f"{clean_value:.4f}" if clean_value is not None else "-",
+                    f"{reconstruction:.4f}",
+                    f"{column_loss:.6f}",
+                ])
+
+            print(tabulate.tabulate(comparison, headers=["Column", "Input (Val Anomalous)", "Original (val_scaled)", "Reconstruction", "Loss (MSE)"]))
+
+        def _slug(text):
+            return re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(text)).strip("_") or "unknown"
+
+        def _to_serializable(value):
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            if isinstance(value, (np.integer,)):
+                return int(value)
+            if isinstance(value, (np.floating,)):
+                return float(value)
+            if isinstance(value, dict):
+                return {str(k): _to_serializable(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [_to_serializable(v) for v in value]
+            return value
+
+        examples_dir = os.path.join(tables_dir, "reconstruction_examples")
+        if STORE:
+            os.makedirs(examples_dir, exist_ok=True)
+
+        def _save_example(example_key, example):
+            if not STORE or example is None:
+                return
+
+            anomaly_col_names = [str(example["column_names"][col_idx]) for col_idx in example["anomaly_columns"]]
+            per_column = []
+            anomaly_col_set = set(example["anomaly_columns"])
+
+            for col_idx, col_name in enumerate(example["column_names"]):
+                per_column.append({
+                    "column_index": col_idx,
+                    "column_name": str(col_name),
+                    "is_anomaly_column": col_idx in anomaly_col_set,
+                    "input_val_anomalous": float(example["original"][col_idx]),
+                    "original_val_scaled": float(example["clean_original"][col_idx]) if example["clean_original"] is not None else None,
+                    "reconstruction": float(example["reconstruction"][col_idx]),
+                    "loss_mse": float(example["per_column_loss"][col_idx]),
+                })
+
+            payload = {
+                "example_type": example_key,  # TP_<type>, FN, FP
+                "resource": example["resource"],
+                "row_id": int(example["row_id"]),
+                "anomaly_type": str(example["anomaly_type"]),
+                "is_actual_anomaly": bool(example["is_actual_anomaly"]),
+                "row_loss_mse_scaled": float(example["row_loss"]),
+                "anomaly_columns_indices": [int(i) for i in example["anomaly_columns"]],
+                "anomaly_columns_names": anomaly_col_names,
+                "column_names": [str(c) for c in example["column_names"]],
+                "input_row_val_anomalous": _to_serializable(example["original"]),
+                "original_row_val_scaled_clean": _to_serializable(example["clean_original"]) if example["clean_original"] is not None else None,
+                "reconstruction_row": _to_serializable(example["reconstruction"]),
+                "per_column_details": per_column,
+            }
+
+            file_name = f"{_slug(example_key)}__{_slug(example['resource'])}__row_{int(example['row_id'])}.json"
+            output_path = os.path.join(examples_dir, file_name)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+
+        # Print and save one TP per anomaly type
+        for anomaly_type in all_anomaly_types:
+            key = f"TP_{anomaly_type}"
+            example = examples["TP_BY_TYPE"][anomaly_type]
+            _print_example(f"TP Example - {anomaly_type}", example)
+            _save_example(key, example)
+
+        # Print and save one FN and one FP
+        _print_example("FN Example", examples["FN"])
+        _save_example("FN", examples["FN"])
+
+        _print_example("FP Example", examples["FP"])
+        _save_example("FP", examples["FP"])
+
+        if STORE:
+            print(f"\nStored reconstruction examples in '{examples_dir}'")
+
+        # Cleanup temporary cached arrays
+        data.pop("_val_rows_scaled", None)
+        data.pop("_reconstructions_scaled", None)
+        data.pop("_val_rows_reversed", None)
+        data.pop("_reconstructions_reversed", None)
+        data.pop("_val_scaled_clean_reversed", None)
             
             
     # Load and display hyperparameters from the hyperparameters folder

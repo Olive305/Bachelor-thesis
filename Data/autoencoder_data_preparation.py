@@ -30,7 +30,7 @@ def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
     
     # Get file location
     parquet_directory = os.path.join(os.getcwd(), "Data", "20130794", "Cleaned Event Log", "parquet")
-    file_location = os.path.join(parquet_directory, "all_combined_with_synthetic.parquet")
+    file_location = os.path.join(parquet_directory, "all_combined_new.parquet")
     
     if not os.path.exists(file_location):
         raise FileNotFoundError(f"Parquet file not found at {file_location}")
