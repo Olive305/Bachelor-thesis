@@ -12,6 +12,7 @@ import random
 import atexit
 import json
 import re
+import hashlib
 
 STORE = True
 RANDOM_SEED = 42
@@ -471,6 +472,7 @@ if __name__ == "__main__":
         all_anomaly_types = sorted(set(data["anomaly_types"].values()))
         examples = {
             "TP_BY_TYPE": {anomaly_type: None for anomaly_type in all_anomaly_types},
+            "TP_EXTRA": None,
             "FN": None,
             "FP": None,
         }
@@ -522,6 +524,7 @@ if __name__ == "__main__":
         rng = random.Random(RANDOM_SEED)
 
         tp_candidates_by_type = defaultdict(list)
+        tp_candidates_all = []
         fn_candidates = []
         fp_candidates = []
 
@@ -532,6 +535,7 @@ if __name__ == "__main__":
             if is_actual_anomaly and is_detected_anomaly:
                 anomaly_type = anomaly_types.get(row_id, "UNKNOWN_TYPE")
                 tp_candidates_by_type[anomaly_type].append(row_id)
+                tp_candidates_all.append(row_id)
             elif is_actual_anomaly and not is_detected_anomaly:
                 fn_candidates.append(row_id)
             elif not is_actual_anomaly and is_detected_anomaly:
@@ -548,6 +552,23 @@ if __name__ == "__main__":
             if candidates:
                 chosen_row = rng.choice(candidates)
                 examples["TP_BY_TYPE"][anomaly_type] = _build_example(chosen_row, data)
+
+        # Select an additional TP example with an independent deterministic RNG
+        # so adding it does not change existing TP/FN/FP selections.
+        if tp_candidates_all:
+            selected_tp_rows = {
+                example["row_id"]
+                for example in examples["TP_BY_TYPE"].values()
+                if example is not None
+            }
+            tp_extra_candidates = [row_id for row_id in tp_candidates_all if row_id not in selected_tp_rows]
+            if not tp_extra_candidates:
+                tp_extra_candidates = tp_candidates_all
+
+            tp_extra_seed_input = f"{RANDOM_SEED}|{example_resource}|TP_EXTRA"
+            tp_extra_seed = int(hashlib.sha256(tp_extra_seed_input.encode("utf-8")).hexdigest()[:16], 16)
+            tp_extra_rng = random.Random(tp_extra_seed)
+            examples["TP_EXTRA"] = _build_example(tp_extra_rng.choice(tp_extra_candidates), data)
 
         if fn_candidates:
             examples["FN"] = _build_example(rng.choice(fn_candidates), data)
@@ -653,6 +674,9 @@ if __name__ == "__main__":
             example = examples["TP_BY_TYPE"][anomaly_type]
             _print_example(f"TP Example - {anomaly_type}", example)
             _save_example(key, example)
+
+        _print_example("TP Example - Extra", examples["TP_EXTRA"])
+        _save_example("TP_EXTRA", examples["TP_EXTRA"])
 
         # Print and save one FN and one FP
         _print_example("FN Example", examples["FN"])
