@@ -55,7 +55,7 @@ def detect_anomalies(train_scaled, test_scaled, val_anomalous, scaling, column_n
     # Detect anomalies and return their indices
     detected_anomaly_indices = np.where(losses > threshold)[0]
     
-    return detected_anomaly_indices, reconstructed
+    return detected_anomaly_indices, reconstructed, threshold
     
 def add_synthetic_anomalies(val_scaled, train_scaled, test_scaled, column_names):
     # Select 5% of the rows of the validation set, which should be changed to create an anomaly

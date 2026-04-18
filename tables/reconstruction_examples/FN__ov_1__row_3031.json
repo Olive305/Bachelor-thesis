@@ -1,17 +1,78 @@
 {
   "example_type": "FN",
   "resource": "ov_1",
-  "row_id": 196,
-  "anomaly_type": "context",
+  "row_id": 3031,
+  "anomaly_type": "data_point",
   "is_actual_anomaly": true,
-  "row_loss_mse_scaled": 0.6815619013328171,
+  "row_loss_mse_scaled": 0.058815539923966965,
+  "autoencoder_threshold": 0.8003188967704773,
+  "z_normalization_scaling": {
+    "feature_names": [
+      "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",
+      "http://iot.uni-trier.de/FTOnto#OV_1_Light_Barrier_5_http://iot.uni-trier.de/FTOnto#LightBarrierInterrupted",
+      "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#CompressorPowerLevel",
+      "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_1_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+      "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_2_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+      "http://iot.uni-trier.de/FTOnto#OV_1_Motor_1_http://iot.uni-trier.de/FTOnto#MotorSpeed",
+      "http://iot.uni-trier.de/FTOnto#OV_1_Valve_7_http://iot.uni-trier.de/FTOnto#ValveOpen",
+      "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Temperature",
+      "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Pneumatic_System_Pressure",
+      "event_burning the workpiece for 15 seconds",
+      "event_burning the workpiece for 20 seconds",
+      "event_burning the workpiece for 25 seconds",
+      "event_opening the oven door",
+      "event_temper the workpiece for 40 seconds",
+      "event_transporting the workpiece to the inside of the oven",
+      "event_transporting the workpiece to the outside of the oven",
+      "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_not ready",
+      "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_ready"
+    ],
+    "std_per_feature": [
+      13.889318135371354,
+      0.33434389284393284,
+      240.07503968476195,
+      0.42927427451757194,
+      0.2841141052887889,
+      206.55145889290253,
+      0.36913612466645246,
+      1.397458136283981,
+      0.740053060173901,
+      0.22227798301519952,
+      0.260474455760839,
+      0.23152402708404698,
+      0.36996143891887023,
+      0.49166090679182517,
+      0.2737692231481021,
+      0.27321484560472636,
+      0.026225132667938952,
+      0.01042383243687241
+    ],
+    "median_per_feature": [
+      18.125039,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      -2.7755575615628914e-17,
+      0.0,
+      26.209,
+      0.363,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      -1.3552527156068805e-20
+    ]
+  },
   "anomaly_columns_indices": [
-    8,
-    3
+    7
   ],
   "anomaly_columns_names": [
-    "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Pneumatic_System_Pressure",
-    "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_1_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed"
+    "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Temperature"
   ],
   "column_names": [
     "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",
@@ -34,74 +95,74 @@
     "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_ready"
   ],
   "input_row_val_anomalous": [
-    7.203135,
+    38.375579,
     0.0,
     0.0,
-    0.0,
+    1.0,
     0.0,
     -2.7755575615628914e-17,
     0.0,
-    28.554,
-    -15.197,
+    29.904144442431708,
+    0.331,
     0.0,
     0.0,
     0.0,
     0.0,
-    0.0,
+    1.0,
     0.0,
     0.0,
     1.0,
     -1.3552527156068805e-20
   ],
   "original_row_val_scaled_clean": [
-    7.203135,
+    38.375579,
     0.0,
     0.0,
     1.0,
     0.0,
     -2.7755575615628914e-17,
     0.0,
-    28.554,
+    24.548,
     0.331,
     0.0,
     0.0,
     0.0,
     0.0,
-    0.0,
+    1.0,
     0.0,
     0.0,
     1.0,
     -1.3552527156068805e-20
   ],
   "reconstruction_row": [
-    21.307647705078125,
-    -0.07315072417259216,
-    287.18743896484375,
-    0.8699088096618652,
-    -0.13162124156951904,
-    -114.08164978027344,
-    0.28366339206695557,
-    27.175968170166016,
-    -14.547072410583496,
-    0.11113911867141724,
-    -0.05720189958810806,
-    -0.12657105922698975,
-    0.28970837593078613,
-    0.1926455944776535,
-    0.2590651512145996,
-    0.029200401157140732,
-    0.985256552696228,
-    0.004786467645317316
+    35.051483154296875,
+    0.0008642077445983887,
+    -8.634567260742188,
+    1.024092435836792,
+    -0.00480816513299942,
+    -8.2409086227417,
+    -0.019154146313667297,
+    28.53458023071289,
+    0.2978586256504059,
+    0.008828587830066681,
+    -0.020834900438785553,
+    0.013426735997200012,
+    0.0024969875812530518,
+    1.0241272449493408,
+    -0.0025042295455932617,
+    -0.017353802919387817,
+    1.00198495388031,
+    0.0008247437654063106
   ],
   "per_column_details": [
     {
       "column_index": 0,
       "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",
       "is_anomaly_column": false,
-      "input_val_anomalous": 7.203135,
-      "original_val_scaled": 7.203135,
-      "reconstruction": 21.307647705078125,
-      "loss_mse": 1.0312270040491058
+      "input_val_anomalous": 38.375579,
+      "original_val_scaled": 38.375579,
+      "reconstruction": 35.051483154296875,
+      "loss_mse": 0.057277685826753924
     },
     {
       "column_index": 1,
@@ -109,8 +170,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": -0.07315072417259216,
-      "loss_mse": 0.047868594273819245
+      "reconstruction": 0.0008642077445983887,
+      "loss_mse": 6.681091529504403e-06
     },
     {
       "column_index": 2,
@@ -118,17 +179,17 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 287.18743896484375,
-      "loss_mse": 1.4309907263295907
+      "reconstruction": -8.634567260742188,
+      "loss_mse": 0.0012935602434327158
     },
     {
       "column_index": 3,
       "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_1_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
-      "is_anomaly_column": true,
-      "input_val_anomalous": 0.0,
+      "is_anomaly_column": false,
+      "input_val_anomalous": 1.0,
       "original_val_scaled": 1.0,
-      "reconstruction": 0.8699088096618652,
-      "loss_mse": 4.106556082697643
+      "reconstruction": 1.024092435836792,
+      "loss_mse": 0.003149883560408933
     },
     {
       "column_index": 4,
@@ -136,8 +197,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": -0.13162124156951904,
-      "loss_mse": 0.21461815728033215
+      "reconstruction": -0.00480816513299942,
+      "loss_mse": 0.0002864002115562281
     },
     {
       "column_index": 5,
@@ -145,8 +206,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": -2.7755575615628914e-17,
       "original_val_scaled": -2.7755575615628914e-17,
-      "reconstruction": -114.08164978027344,
-      "loss_mse": 0.3050528625256371
+      "reconstruction": -8.2409086227417,
+      "loss_mse": 0.0015918191523971296
     },
     {
       "column_index": 6,
@@ -154,26 +215,26 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 0.28366339206695557,
-      "loss_mse": 0.5905185214281966
+      "reconstruction": -0.019154146313667297,
+      "loss_mse": 0.0026924798062649326
     },
     {
       "column_index": 7,
       "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Temperature",
-      "is_anomaly_column": false,
-      "input_val_anomalous": 28.554,
-      "original_val_scaled": 28.554,
-      "reconstruction": 27.175968170166016,
-      "loss_mse": 0.9723910467468357
+      "is_anomaly_column": true,
+      "input_val_anomalous": 29.904144442431708,
+      "original_val_scaled": 24.548,
+      "reconstruction": 28.53458023071289,
+      "loss_mse": 0.9604758173052014
     },
     {
       "column_index": 8,
       "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Pneumatic_System_Pressure",
-      "is_anomaly_column": true,
-      "input_val_anomalous": -15.197,
+      "is_anomaly_column": false,
+      "input_val_anomalous": 0.331,
       "original_val_scaled": 0.331,
-      "reconstruction": -14.547072410583496,
-      "loss_mse": 0.7712658994145042
+      "reconstruction": 0.2978586256504059,
+      "loss_mse": 0.0020054629226946784
     },
     {
       "column_index": 9,
@@ -181,8 +242,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 0.11113911867141724,
-      "loss_mse": 0.2500005868660752
+      "reconstruction": 0.008828587830066681,
+      "loss_mse": 0.0015775734101579517
     },
     {
       "column_index": 10,
@@ -190,8 +251,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": -0.05720189958810806,
-      "loss_mse": 0.048227053115468065
+      "reconstruction": -0.020834900438785553,
+      "loss_mse": 0.006398129671175773
     },
     {
       "column_index": 11,
@@ -199,8 +260,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": -0.12657105922698975,
-      "loss_mse": 0.298866174416658
+      "reconstruction": 0.013426735997200012,
+      "loss_mse": 0.003363168865748547
     },
     {
       "column_index": 12,
@@ -208,17 +269,17 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 0.28970837593078613,
-      "loss_mse": 0.6132099390003198
+      "reconstruction": 0.0024969875812530518,
+      "loss_mse": 4.555326811880252e-05
     },
     {
       "column_index": 13,
       "column_name": "event_temper the workpiece for 40 seconds",
       "is_anomaly_column": false,
-      "input_val_anomalous": 0.0,
-      "original_val_scaled": 0.0,
-      "reconstruction": 0.1926455944776535,
-      "loss_mse": 0.15352770364669338
+      "input_val_anomalous": 1.0,
+      "original_val_scaled": 1.0,
+      "reconstruction": 1.0241272449493408,
+      "loss_mse": 0.0024081598271653883
     },
     {
       "column_index": 14,
@@ -226,8 +287,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 0.2590651512145996,
-      "loss_mse": 0.8954653418226218
+      "reconstruction": -0.0025042295455932617,
+      "loss_mse": 8.367137667483327e-05
     },
     {
       "column_index": 15,
@@ -235,8 +296,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 0.0,
       "original_val_scaled": 0.0,
-      "reconstruction": 0.029200401157140732,
-      "loss_mse": 0.011422707613239786
+      "reconstruction": -0.017353802919387817,
+      "loss_mse": 0.004034416255461137
     },
     {
       "column_index": 16,
@@ -244,8 +305,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": 1.0,
       "original_val_scaled": 1.0,
-      "reconstruction": 0.985256552696228,
-      "loss_mse": 0.31605496042000575
+      "reconstruction": 1.00198495388031,
+      "loss_mse": 0.0057291275583179774
     },
     {
       "column_index": 17,
@@ -253,8 +314,8 @@
       "is_anomaly_column": false,
       "input_val_anomalous": -1.3552527156068805e-20,
       "original_val_scaled": -1.3552527156068805e-20,
-      "reconstruction": 0.004786467645317316,
-      "loss_mse": 0.21085086234396067
+      "reconstruction": 0.0008247437654063106,
+      "loss_mse": 0.006260128278345525
     }
   ]
 }

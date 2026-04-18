@@ -5,3 +5,4 @@ seaborn
 tensorflow
 scikit-learn
 duckdb
+openpyxl

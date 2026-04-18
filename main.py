@@ -12,7 +12,8 @@ import random
 import atexit
 import json
 import re
-import hashlib
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 STORE = True
 RANDOM_SEED = 42
@@ -119,7 +120,7 @@ if __name__ == "__main__":
         
         # Perform anomaly detection on the data
         print("Performing anomaly detection on the data...\n")
-        detected_rows, reconstructions = detect_anomalies(train_scaled, test_scaled, val_anomalous, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning, prints=True, val_scaled=val_scaled)
+        detected_rows, reconstructions, threshold = detect_anomalies(train_scaled, test_scaled, val_anomalous, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning, prints=True, val_scaled=val_scaled)
         
         # Perform anomaly detection on the data using baseline models for comparison
         print("Performing anomaly detection using baseline techniques...\n")
@@ -136,6 +137,7 @@ if __name__ == "__main__":
             "column_names": column_names,
             "ae_reconstructions": reconstructions,                
             "scaling": scaling,
+            "ae_threshold": threshold,
             "anomaly_types": anomaly_types
         }
         
@@ -472,7 +474,7 @@ if __name__ == "__main__":
         all_anomaly_types = sorted(set(data["anomaly_types"].values()))
         examples = {
             "TP_BY_TYPE": {anomaly_type: None for anomaly_type in all_anomaly_types},
-            "TP_EXTRA": None,
+            "TN": None,
             "FN": None,
             "FP": None,
         }
@@ -509,6 +511,21 @@ if __name__ == "__main__":
         data["_reconstructions_scaled"] = to_numpy_2d(data["ae_reconstructions"])
         data["_val_rows_reversed"] = resource_scaling.inverse_transform(data["_val_rows_scaled"])
         data["_reconstructions_reversed"] = resource_scaling.inverse_transform(data["_reconstructions_scaled"])
+        train_rows_scaled = to_numpy_2d(data["train_scaled"])
+        train_rows_reversed = resource_scaling.inverse_transform(train_rows_scaled)
+
+        # StandardScaler exposes per-feature std via scale_.
+        scaling_std = getattr(resource_scaling, "scale_", None)
+        if scaling_std is None:
+            scaling_std = np.std(train_rows_reversed, axis=0)
+
+        # Median is not part of StandardScaler, so derive it from unscaled training data.
+        scaling_median = np.median(train_rows_reversed, axis=0)
+        scaling_stats = {
+            "feature_names": [str(c) for c in data["column_names"]],
+            "std_per_feature": [float(v) for v in np.asarray(scaling_std)],
+            "median_per_feature": [float(v) for v in np.asarray(scaling_median)],
+        }
 
         # Load clean validation rows (val_scaled) for "original data" comparison
         _, _, val_scaled_clean, _, _ = read_and_prepare_data(example_resource, load_preprepared=reread_prepared_data, prints=False)
@@ -524,9 +541,9 @@ if __name__ == "__main__":
         rng = random.Random(RANDOM_SEED)
 
         tp_candidates_by_type = defaultdict(list)
-        tp_candidates_all = []
         fn_candidates = []
         fp_candidates = []
+        tn_candidates = []
 
         for row_id in range(len(val_rows)):
             is_actual_anomaly = row_id in anomalous_values
@@ -535,11 +552,12 @@ if __name__ == "__main__":
             if is_actual_anomaly and is_detected_anomaly:
                 anomaly_type = anomaly_types.get(row_id, "UNKNOWN_TYPE")
                 tp_candidates_by_type[anomaly_type].append(row_id)
-                tp_candidates_all.append(row_id)
             elif is_actual_anomaly and not is_detected_anomaly:
                 fn_candidates.append(row_id)
             elif not is_actual_anomaly and is_detected_anomaly:
                 fp_candidates.append(row_id)
+            else:
+                tn_candidates.append(row_id)
 
         def _normalize_row_id(value):
             try:
@@ -553,22 +571,8 @@ if __name__ == "__main__":
                 chosen_row = rng.choice(candidates)
                 examples["TP_BY_TYPE"][anomaly_type] = _build_example(chosen_row, data)
 
-        # Select an additional TP example with an independent deterministic RNG
-        # so adding it does not change existing TP/FN/FP selections.
-        if tp_candidates_all:
-            selected_tp_rows = {
-                example["row_id"]
-                for example in examples["TP_BY_TYPE"].values()
-                if example is not None
-            }
-            tp_extra_candidates = [row_id for row_id in tp_candidates_all if row_id not in selected_tp_rows]
-            if not tp_extra_candidates:
-                tp_extra_candidates = tp_candidates_all
-
-            tp_extra_seed_input = f"{RANDOM_SEED}|{example_resource}|TP_EXTRA"
-            tp_extra_seed = int(hashlib.sha256(tp_extra_seed_input.encode("utf-8")).hexdigest()[:16], 16)
-            tp_extra_rng = random.Random(tp_extra_seed)
-            examples["TP_EXTRA"] = _build_example(tp_extra_rng.choice(tp_extra_candidates), data)
+        if tn_candidates:
+            examples["TN"] = _build_example(rng.choice(tn_candidates), data)
 
         if fn_candidates:
             examples["FN"] = _build_example(rng.choice(fn_candidates), data)
@@ -654,6 +658,8 @@ if __name__ == "__main__":
                 "anomaly_type": str(example["anomaly_type"]),
                 "is_actual_anomaly": bool(example["is_actual_anomaly"]),
                 "row_loss_mse_scaled": float(example["row_loss"]),
+                "autoencoder_threshold": float(data["ae_threshold"]),
+                "z_normalization_scaling": scaling_stats,
                 "anomaly_columns_indices": [int(i) for i in example["anomaly_columns"]],
                 "anomaly_columns_names": anomaly_col_names,
                 "column_names": [str(c) for c in example["column_names"]],
@@ -668,6 +674,89 @@ if __name__ == "__main__":
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2, ensure_ascii=False)
 
+            # Also store a thesis-ready XLSX version of the same example.
+            xlsx_file_name = f"{_slug(example_key)}__{_slug(example['resource'])}__row_{int(example['row_id'])}.xlsx"
+            xlsx_output_path = os.path.join(examples_dir, xlsx_file_name)
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Example"
+
+            title = f"Reconstruction Example: {example_key}"
+            ws.merge_cells("A1:E1")
+            ws["A1"] = title
+            ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+            ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+            ws.merge_cells("A2:E2")
+            ws["A2"] = (
+                f"Resource: {example['resource']} | Row ID: {int(example['row_id'])} | "
+                f"Anomaly Type: {example['anomaly_type']} | Row Loss (MSE): {float(example['row_loss']):.6f}"
+            )
+            ws["A2"].font = Font(name="Calibri", size=11, italic=True)
+            ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+
+            header_row = 4
+            headers = ["Sensor Name", "Input", "Reconstruction", "Original Data", "Loss (MSE)"]
+            for col_idx, header in enumerate(headers, start=1):
+                cell = ws.cell(row=header_row, column=col_idx, value=header)
+                cell.font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+                cell.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            anomaly_col_set = set(example["anomaly_columns"])
+            thin_border = Border(
+                left=Side(style="thin", color="D9D9D9"),
+                right=Side(style="thin", color="D9D9D9"),
+                top=Side(style="thin", color="D9D9D9"),
+                bottom=Side(style="thin", color="D9D9D9"),
+            )
+
+            for row_offset, col_name in enumerate(example["column_names"], start=1):
+                row_idx = header_row + row_offset
+                col_idx = row_offset - 1
+
+                input_value = float(example["original"][col_idx])
+                reconstruction_value = float(example["reconstruction"][col_idx])
+                original_data_value = (
+                    float(example["clean_original"][col_idx])
+                    if example["clean_original"] is not None
+                    else None
+                )
+                value_loss = float(example["per_column_loss"][col_idx])
+
+                ws.cell(row=row_idx, column=1, value=str(col_name))
+                ws.cell(row=row_idx, column=2, value=input_value)
+                ws.cell(row=row_idx, column=3, value=reconstruction_value)
+                ws.cell(row=row_idx, column=4, value=original_data_value)
+                ws.cell(row=row_idx, column=5, value=value_loss)
+
+                if col_idx in anomaly_col_set:
+                    for col in range(1, 6):
+                        ws.cell(row=row_idx, column=col).fill = PatternFill(
+                            start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
+                        )
+
+                for col in range(1, 6):
+                    c = ws.cell(row=row_idx, column=col)
+                    c.border = thin_border
+                    c.alignment = Alignment(vertical="center")
+
+            for col in range(2, 6):
+                for row in range(header_row + 1, header_row + 1 + len(example["column_names"])):
+                    ws.cell(row=row, column=col).number_format = "0.0000"
+
+            ws.column_dimensions["A"].width = 34
+            ws.column_dimensions["B"].width = 16
+            ws.column_dimensions["C"].width = 16
+            ws.column_dimensions["D"].width = 16
+            ws.column_dimensions["E"].width = 16
+            ws.freeze_panes = "A5"
+            ws.auto_filter.ref = f"A{header_row}:E{header_row + len(example['column_names'])}"
+            ws.sheet_view.showGridLines = False
+
+            wb.save(xlsx_output_path)
+
         # Print and save one TP per anomaly type
         for anomaly_type in all_anomaly_types:
             key = f"TP_{anomaly_type}"
@@ -675,8 +764,8 @@ if __name__ == "__main__":
             _print_example(f"TP Example - {anomaly_type}", example)
             _save_example(key, example)
 
-        _print_example("TP Example - Extra", examples["TP_EXTRA"])
-        _save_example("TP_EXTRA", examples["TP_EXTRA"])
+        _print_example("TN Example", examples["TN"])
+        _save_example("TN", examples["TN"])
 
         # Print and save one FN and one FP
         _print_example("FN Example", examples["FN"])
