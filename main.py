@@ -255,6 +255,64 @@ if __name__ == "__main__":
             method_output_path = os.path.join(tables_dir, method_file_name)
             pd.DataFrame(per_anomaly_table, columns=per_anomaly_headers).to_excel(method_output_path, index=False)
 
+    # Calculate metrics per number of anomalies in a row across all resources for all models.
+    print(f"\n{'='*60}")
+    print("Results Per Number of Anomalies in a Row")
+    print(f"{'='*60}\n")
+
+    for method_name, method_key in methods:
+        print(f"\n{'-'*60}")
+        print(f"{method_name}")
+        print(f"{'-'*60}\n")
+
+        anomalies_per_row_tp = defaultdict(int)
+        anomalies_per_row_fn = defaultdict(int)
+        anomalies_per_row_count = defaultdict(int)
+
+        for resource, data in all_results.items():
+            anomalous_values = data["anomalous_values"]
+            detected_rows = data[method_key]
+            detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
+
+            for row_id, anomaly_columns in anomalous_values.items():
+                anomaly_count = int(np.asarray(anomaly_columns).reshape(-1).size)
+                anomalies_per_row_count[anomaly_count] += 1
+
+                if row_id in detected_set:
+                    anomalies_per_row_tp[anomaly_count] += 1
+                else:
+                    anomalies_per_row_fn[anomaly_count] += 1
+
+        per_row_anomaly_table = []
+        all_anomaly_counts = sorted(
+            set(anomalies_per_row_count.keys())
+            | set(anomalies_per_row_tp.keys())
+            | set(anomalies_per_row_fn.keys())
+        )
+
+        for anomaly_count in all_anomaly_counts:
+            tp = anomalies_per_row_tp[anomaly_count]
+            fn = anomalies_per_row_fn[anomaly_count]
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+            miss_rate = fn / (tp + fn) if (tp + fn) > 0 else 0
+
+            per_row_anomaly_table.append([
+                anomaly_count,
+                anomalies_per_row_count[anomaly_count],
+                tp,
+                fn,
+                f"{recall:.3f}",
+                f"{miss_rate:.3f}",
+            ])
+
+        per_row_anomaly_headers = ["# Anomalies in Row", "Count", "TP", "FN", "Recall", "Miss Rate"]
+        print(tabulate.tabulate(per_row_anomaly_table, headers=per_row_anomaly_headers))
+
+        if STORE:
+            method_file_name = method_key.replace("_detected", "") + "_per_row_anomaly_count_metrics.xlsx"
+            method_output_path = os.path.join(tables_dir, method_file_name)
+            pd.DataFrame(per_row_anomaly_table, columns=per_row_anomaly_headers).to_excel(method_output_path, index=False)
+
     # Show raw confusion-matrix counts side by side across methods.
     total_val_rows = sum(len(data["val_anomalous"]) for data in all_results.values())
     confusion_counts = {"TP": {}, "FP": {}, "TN": {}, "FN": {}}
@@ -332,10 +390,7 @@ if __name__ == "__main__":
         detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
         
         tp = sum(1 for row_id in detected_set if row_id in anomalous_values)
-        fp = sum(1 for row_id in detected_set if row_id not in anomalous_values)
-        fn = sum(1 for row_id in anomalous_values.keys() if row_id not in detected_set)
-        
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        fp = sum(1 for row_id in detected_set if row_id not in anomalous_values)  
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
         f1_scores.append(f1)
@@ -785,6 +840,247 @@ if __name__ == "__main__":
         data.pop("_val_scaled_clean_reversed", None)
             
             
+    # Perform anomaly detection on the original (clean) oven validation set.
+    print(f"\n{'='*60}")
+    print("Original Oven Validation Set - Anomaly Detection")
+    print(f"{'='*60}\n")
+
+    oven_resource = "ov_1"
+    if oven_resource not in all_results:
+        print(f"Resource '{oven_resource}' was not selected. Skipping clean oven validation analysis.")
+    else:
+        oven_train_scaled, oven_test_scaled, oven_val_scaled_clean, oven_scaling, oven_column_names = read_and_prepare_data(
+            oven_resource,
+            load_preprepared=reread_prepared_data,
+            prints=False,
+        )
+
+        # Autoencoder on clean validation set (no synthetic anomalies)
+        oven_clean_detected_rows, oven_clean_reconstructions, oven_clean_threshold = detect_anomalies(
+            oven_train_scaled,
+            oven_test_scaled,
+            oven_val_scaled_clean,
+            oven_scaling,
+            oven_column_names,
+            oven_resource,
+            train_model=False,
+            redo_hyperparameter_tuning=False,
+            prints=False,
+            val_scaled=oven_val_scaled_clean,
+        )
+
+        # Baselines on clean validation set
+        oven_clean_if_rows = detect_using_isolation_forest(
+            oven_train_scaled,
+            oven_test_scaled,
+            oven_val_scaled_clean,
+            oven_scaling,
+            oven_column_names,
+            prints=False,
+        )
+        oven_clean_svm_rows = detect_using_one_class_support_vector_machine(
+            oven_train_scaled,
+            oven_val_scaled_clean,
+            oven_val_scaled_clean,
+            oven_scaling,
+            oven_column_names,
+            prints=False,
+        )
+
+        total_clean_rows = len(oven_val_scaled_clean)
+
+        ae_detected_set = set(oven_clean_detected_rows) if not isinstance(oven_clean_detected_rows, dict) else set(oven_clean_detected_rows.keys())
+        if_detected_set = set(oven_clean_if_rows) if not isinstance(oven_clean_if_rows, dict) else set(oven_clean_if_rows.keys())
+        svm_detected_set = set(oven_clean_svm_rows) if not isinstance(oven_clean_svm_rows, dict) else set(oven_clean_svm_rows.keys())
+
+        # Per-event anomaly counts for oven 1 using AE detections on the original clean validation set.
+        oven_val_np_for_events = to_numpy_2d(oven_val_scaled_clean)
+        oven_val_unscaled_for_events = np.asarray(oven_scaling.inverse_transform(oven_val_np_for_events))
+        event_columns = extract_event_column_indices(oven_column_names)
+        if event_columns:
+            all_event_counts = defaultdict(int)
+            anomaly_event_counts = defaultdict(int)
+
+            for row_id in range(len(oven_val_unscaled_for_events)):
+                event_name = get_event_for_row(oven_val_unscaled_for_events[row_id], event_columns)
+                all_event_counts[event_name] += 1
+                if row_id in ae_detected_set:
+                    anomaly_event_counts[event_name] += 1
+
+            event_anomaly_table = []
+            for event_name in sorted(all_event_counts.keys()):
+                event_anomaly_table.append([
+                    event_name,
+                    anomaly_event_counts.get(event_name, 0),
+                    all_event_counts[event_name],
+                ])
+
+            print("\nAutoencoder anomalies per event (ov_1 clean validation):")
+            print(tabulate.tabulate(event_anomaly_table, headers=["Event", "Detected Anomalies", "Total Rows"]))
+
+        clean_counts_table = [
+            ["Autoencoder", len(ae_detected_set), total_clean_rows - len(ae_detected_set), f"{(len(ae_detected_set) / total_clean_rows if total_clean_rows > 0 else 0):.3f}"],
+            ["Isolation Forest", len(if_detected_set), total_clean_rows - len(if_detected_set), f"{(len(if_detected_set) / total_clean_rows if total_clean_rows > 0 else 0):.3f}"],
+            ["SVM", len(svm_detected_set), total_clean_rows - len(svm_detected_set), f"{(len(svm_detected_set) / total_clean_rows if total_clean_rows > 0 else 0):.3f}"],
+        ]
+        clean_counts_headers = ["Method", "Detected Anomalies", "Detected Normal", "Anomaly Rate"]
+
+        print(f"Resource: {oven_resource}")
+        print(tabulate.tabulate(clean_counts_table, headers=clean_counts_headers))
+
+        oven_val_np = to_numpy_2d(oven_val_scaled_clean)
+        oven_recon_np = to_numpy_2d(oven_clean_reconstructions)
+        oven_row_losses = np.mean((oven_val_np - oven_recon_np) ** 2, axis=1)
+
+        loss_metrics = [
+            ["Rows", total_clean_rows],
+            ["AE Threshold", f"{float(oven_clean_threshold):.6f}"],
+            ["Mean Row MSE", f"{float(np.mean(oven_row_losses)):.6f}"],
+            ["Std Row MSE", f"{float(np.std(oven_row_losses)):.6f}"],
+            ["Median Row MSE", f"{float(np.median(oven_row_losses)):.6f}"],
+            ["95th Percentile Row MSE", f"{float(np.percentile(oven_row_losses, 95)):.6f}"],
+            ["Max Row MSE", f"{float(np.max(oven_row_losses)):.6f}"],
+        ]
+        print("\nAutoencoder loss metrics on clean validation set:")
+        print(tabulate.tabulate(loss_metrics, headers=["Metric", "Value"]))
+
+        if ae_detected_set:
+            top_k = min(10, len(oven_row_losses))
+            top_rows = np.argsort(oven_row_losses)[-top_k:][::-1]
+            top_rows_table = [[int(row_id), f"{float(oven_row_losses[row_id]):.6f}", "Yes" if int(row_id) in ae_detected_set else "No"] for row_id in top_rows]
+            print("\nTop rows by AE reconstruction error (clean validation):")
+            print(tabulate.tabulate(top_rows_table, headers=["Row ID", "Row MSE", "Detected as Anomaly"]))
+
+        if STORE:
+            clean_counts_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_val_anomaly_counts.xlsx")
+            pd.DataFrame(clean_counts_table, columns=clean_counts_headers).to_excel(clean_counts_output_path, index=False)
+
+            clean_loss_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_val_ae_loss_metrics.xlsx")
+            pd.DataFrame(loss_metrics, columns=["Metric", "Value"]).to_excel(clean_loss_output_path, index=False)
+
+            # Store reconstrucytion example for every row detected as anomalous by AE.
+            clean_examples_dir = os.path.join(
+                tables_dir,
+                f"{oven_resource}_clean_val_anomalous_reconstruction_examples",
+            )
+            os.makedirs(clean_examples_dir, exist_ok=True)
+
+            for row_id in sorted(int(r) for r in ae_detected_set):
+                if row_id < 0 or row_id >= len(oven_row_losses):
+                    continue
+
+                row_input = oven_val_np[row_id]
+                row_reconstruction = oven_recon_np[row_id]
+                row_input_unscaled = np.asarray(
+                    oven_scaling.inverse_transform(np.asarray(row_input).reshape(1, -1))
+                ).ravel()
+                row_reconstruction_unscaled = np.asarray(
+                    oven_scaling.inverse_transform(np.asarray(row_reconstruction).reshape(1, -1))
+                ).ravel()
+                # Keep values unscaled for readability, but compute losses in scaled space.
+                per_column_loss_scaled = (np.asarray(row_input) - np.asarray(row_reconstruction)) ** 2
+
+                per_column_details = []
+                for col_idx, col_name in enumerate(oven_column_names):
+                    per_column_details.append({
+                        "column_index": int(col_idx),
+                        "column_name": str(col_name),
+                        "input_val_unscaled": float(row_input_unscaled[col_idx]),
+                        "reconstruction_unscaled": float(row_reconstruction_unscaled[col_idx]),
+                        "loss_mse": float(per_column_loss_scaled[col_idx]),
+                    })
+
+                payload = {
+                    "resource": oven_resource,
+                    "row_id": int(row_id),
+                    "is_detected_anomaly_by_autoencoder": True,
+                    "row_loss_mse_scaled": float(oven_row_losses[row_id]),
+                    "row_loss_mse_unscaled": float(np.mean((row_input_unscaled - row_reconstruction_unscaled) ** 2)),
+                    "autoencoder_threshold": float(oven_clean_threshold),
+                    "column_names": [str(c) for c in oven_column_names],
+                    "input_row_val_unscaled": [float(v) for v in row_input_unscaled],
+                    "reconstruction_row_unscaled": [float(v) for v in row_reconstruction_unscaled],
+                    "per_column_details": per_column_details,
+                }
+
+                json_output_path = os.path.join(
+                    clean_examples_dir,
+                    f"row_{int(row_id)}_reconstruction.json",
+                )
+                with open(json_output_path, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+
+                xlsx_output_path = os.path.join(
+                    clean_examples_dir,
+                    f"row_{int(row_id)}_reconstruction.xlsx",
+                )
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Reconstruction"
+
+                ws.merge_cells("A1:D1")
+                ws["A1"] = f"Clean Validation Reconstruction Example - Row {int(row_id)}"
+                ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+                ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+                ws.merge_cells("A2:D2")
+                ws["A2"] = (
+                    f"Resource: {oven_resource} | Row Loss (MSE, scaled): {float(oven_row_losses[row_id]):.6f} | "
+                    f"Threshold: {float(oven_clean_threshold):.6f}"
+                )
+                ws["A2"].font = Font(name="Calibri", size=11, italic=True)
+                ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+
+                headers = ["Sensor Name", "Input", "Reconstruction", "Loss (MSE)"]
+                header_row = 4
+                for col_idx, header in enumerate(headers, start=1):
+                    cell = ws.cell(row=header_row, column=col_idx, value=header)
+                    cell.font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+                    cell.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                thin_border = Border(
+                    left=Side(style="thin", color="D9D9D9"),
+                    right=Side(style="thin", color="D9D9D9"),
+                    top=Side(style="thin", color="D9D9D9"),
+                    bottom=Side(style="thin", color="D9D9D9"),
+                )
+
+                for row_offset, col_name in enumerate(oven_column_names, start=1):
+                    row_idx = header_row + row_offset
+                    col_idx = row_offset - 1
+
+                    ws.cell(row=row_idx, column=1, value=str(col_name))
+                    ws.cell(row=row_idx, column=2, value=float(row_input_unscaled[col_idx]))
+                    ws.cell(row=row_idx, column=3, value=float(row_reconstruction_unscaled[col_idx]))
+                    ws.cell(row=row_idx, column=4, value=float(per_column_loss_scaled[col_idx]))
+
+                    for col in range(1, 5):
+                        c = ws.cell(row=row_idx, column=col)
+                        c.border = thin_border
+                        c.alignment = Alignment(vertical="center")
+
+                for col in range(2, 5):
+                    for row in range(header_row + 1, header_row + 1 + len(oven_column_names)):
+                        ws.cell(row=row, column=col).number_format = "0.0000"
+
+                ws.column_dimensions["A"].width = 34
+                ws.column_dimensions["B"].width = 16
+                ws.column_dimensions["C"].width = 16
+                ws.column_dimensions["D"].width = 16
+                ws.freeze_panes = "A5"
+                ws.auto_filter.ref = f"A{header_row}:D{header_row + len(oven_column_names)}"
+                ws.sheet_view.showGridLines = False
+
+                wb.save(xlsx_output_path)
+
+            print(
+                f"Stored {len(ae_detected_set)} clean-validation anomalous reconstruction examples in '{clean_examples_dir}'"
+            )
+            
+    
+    
+
     # Load and display hyperparameters from the hyperparameters folder
     hyperparameters_dir = "hyperparameters"
     hyperparams_table = []
@@ -821,3 +1117,7 @@ if __name__ == "__main__":
             if STORE:
                 hyperparams_output_path = os.path.join(tables_dir, "hyperparameters.xlsx")
                 pd.DataFrame(table_rows, columns=headers).to_excel(hyperparams_output_path, index=False)
+                
+                
+                
+ 
