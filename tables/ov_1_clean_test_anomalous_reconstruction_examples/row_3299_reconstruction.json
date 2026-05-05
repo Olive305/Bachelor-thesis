@@ -1,0 +1,196 @@
+{
+  "resource": "ov_1",
+  "row_id": 3299,
+  "is_detected_anomaly_by_autoencoder": true,
+  "row_loss_mse_scaled": 0.8545751617318582,
+  "row_loss_mse_unscaled": 4925.726347892719,
+  "autoencoder_threshold": 0.8003188967704773,
+  "column_names": [
+    "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",
+    "http://iot.uni-trier.de/FTOnto#OV_1_Light_Barrier_5_http://iot.uni-trier.de/FTOnto#LightBarrierInterrupted",
+    "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#CompressorPowerLevel",
+    "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_1_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+    "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_2_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+    "http://iot.uni-trier.de/FTOnto#OV_1_Motor_1_http://iot.uni-trier.de/FTOnto#MotorSpeed",
+    "http://iot.uni-trier.de/FTOnto#OV_1_Valve_7_http://iot.uni-trier.de/FTOnto#ValveOpen",
+    "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Temperature",
+    "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Pneumatic_System_Pressure",
+    "event_burning the workpiece for 15 seconds",
+    "event_burning the workpiece for 20 seconds",
+    "event_burning the workpiece for 25 seconds",
+    "event_opening the oven door",
+    "event_temper the workpiece for 40 seconds",
+    "event_transporting the workpiece to the inside of the oven",
+    "event_transporting the workpiece to the outside of the oven",
+    "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_not ready",
+    "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_ready"
+  ],
+  "input_row_test_unscaled": [
+    6.546927000000002,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -2.7755575615628914e-17,
+    0.0,
+    25.916,
+    -15.070999999999998,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+    -1.3552527156068805e-20
+  ],
+  "reconstruction_row_unscaled": [
+    15.64529800415039,
+    -0.09738166630268097,
+    261.2322998046875,
+    0.8542895317077637,
+    -0.11705192178487778,
+    -142.59461975097656,
+    0.2607187032699585,
+    25.782243728637695,
+    -13.09321403503418,
+    0.03137599304318428,
+    -0.04648401588201523,
+    -0.16153815388679504,
+    0.26198476552963257,
+    0.2665020823478699,
+    0.2753134071826935,
+    -0.004757598042488098,
+    0.9879369139671326,
+    0.00922774150967598
+  ],
+  "per_column_details": [
+    {
+      "column_index": 0,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",
+      "input_test_unscaled": 6.546927000000002,
+      "reconstruction_unscaled": 15.64529800415039,
+      "loss_mse": 0.4291068474258984
+    },
+    {
+      "column_index": 1,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Light_Barrier_5_http://iot.uni-trier.de/FTOnto#LightBarrierInterrupted",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": -0.09738166630268097,
+      "loss_mse": 0.08483357307530104
+    },
+    {
+      "column_index": 2,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#CompressorPowerLevel",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": 261.2322998046875,
+      "loss_mse": 1.1840218315543896
+    },
+    {
+      "column_index": 3,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_1_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+      "input_test_unscaled": 1.0,
+      "reconstruction_unscaled": 0.8542895317077637,
+      "loss_mse": 0.11521576225399577
+    },
+    {
+      "column_index": 4,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Position_Switch_2_http://iot.uni-trier.de/FTOnto#PositionSwitchPressed",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": -0.11705192178487778,
+      "loss_mse": 0.16973505753072846
+    },
+    {
+      "column_index": 5,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Motor_1_http://iot.uni-trier.de/FTOnto#MotorSpeed",
+      "input_test_unscaled": -2.7755575615628914e-17,
+      "reconstruction_unscaled": -142.59461975097656,
+      "loss_mse": 0.47659532113999736
+    },
+    {
+      "column_index": 6,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_Valve_7_http://iot.uni-trier.de/FTOnto#ValveOpen",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": 0.2607187032699585,
+      "loss_mse": 0.4988514404804233
+    },
+    {
+      "column_index": 7,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Temperature",
+      "input_test_unscaled": 25.916,
+      "reconstruction_unscaled": 25.782243728637695,
+      "loss_mse": 0.009161098884209995
+    },
+    {
+      "column_index": 8,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Compressor_8_http://iot.uni-trier.de/FTOnto#OV_1_WT_1_Pneumatic_System_Pressure",
+      "input_test_unscaled": -15.070999999999998,
+      "reconstruction_unscaled": -13.09321403503418,
+      "loss_mse": 7.142214802574652
+    },
+    {
+      "column_index": 9,
+      "column_name": "event_burning the workpiece for 15 seconds",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": 0.03137599304318428,
+      "loss_mse": 0.019925170208021963
+    },
+    {
+      "column_index": 10,
+      "column_name": "event_burning the workpiece for 20 seconds",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": -0.04648401588201523,
+      "loss_mse": 0.03184763504729537
+    },
+    {
+      "column_index": 11,
+      "column_name": "event_burning the workpiece for 25 seconds",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": -0.16153815388679504,
+      "loss_mse": 0.4868084607659117
+    },
+    {
+      "column_index": 12,
+      "column_name": "event_opening the oven door",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": 0.26198476552963257,
+      "loss_mse": 0.5014633566987561
+    },
+    {
+      "column_index": 13,
+      "column_name": "event_temper the workpiece for 40 seconds",
+      "input_test_unscaled": 1.0,
+      "reconstruction_unscaled": 0.2665020823478699,
+      "loss_mse": 2.2256989251398385
+    },
+    {
+      "column_index": 14,
+      "column_name": "event_transporting the workpiece to the inside of the oven",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": 0.2753134071826935,
+      "loss_mse": 1.011312690940666
+    },
+    {
+      "column_index": 15,
+      "column_name": "event_transporting the workpiece to the outside of the oven",
+      "input_test_unscaled": 0.0,
+      "reconstruction_unscaled": -0.004757598042488098,
+      "loss_mse": 0.00030322644896912834
+    },
+    {
+      "column_index": 16,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_not ready",
+      "input_test_unscaled": 1.0,
+      "reconstruction_unscaled": 0.9879369139671326,
+      "loss_mse": 0.2115826104137541
+    },
+    {
+      "column_index": 17,
+      "column_name": "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_State_ready",
+      "input_test_unscaled": -1.3552527156068805e-20,
+      "reconstruction_unscaled": 0.00922774150967598,
+      "loss_mse": 0.7836751005906374
+    }
+  ]
+}

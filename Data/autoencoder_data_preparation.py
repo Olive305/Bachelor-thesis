@@ -274,8 +274,8 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print("\n\n")
         
     # Split the dataframe into train, validation, and test sets
-    train, test = train_test_split(wide, test_size=0.2, random_state=42)
-    val, test = train_test_split(test, test_size=0.5, random_state=42)
+    train, val = train_test_split(wide, test_size=0.2, random_state=42)
+    test, val = train_test_split(val, test_size=0.5, random_state=42)
 
     if prints:
         print(f"Training set size: {len(train)}\n")
@@ -286,8 +286,8 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     timestamp_cols = [col for col in train.columns if "imestamp" in col]
     if timestamp_cols:
         train = train.drop(columns=timestamp_cols)
-        test = test.drop(columns=timestamp_cols)
         val = val.drop(columns=timestamp_cols)
+        test = test.drop(columns=timestamp_cols)
     
     column_names = train.columns
     
@@ -297,19 +297,19 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     # Note: If data is sparse, convert carefully
     if hasattr(train, 'sparse'):
         train = train.sparse.to_dense().astype("float32")
-        test = test.sparse.to_dense().astype("float32")
         val = val.sparse.to_dense().astype("float32")
+        test = test.sparse.to_dense().astype("float32")
     else:
         # Only convert numeric columns to float32
         numeric_cols = train.select_dtypes(include=[np.number]).columns
         train[numeric_cols] = train[numeric_cols].astype("float32")
-        test[numeric_cols] = test[numeric_cols].astype("float32")
         val[numeric_cols] = val[numeric_cols].astype("float32")
+        test[numeric_cols] = test[numeric_cols].astype("float32")
 
     # Convert to numpy arrays (copy=False to avoid extra copies where possible)
     train_values = train.to_numpy(copy=False) if isinstance(train, pd.DataFrame) else train
-    test_values = test.to_numpy(copy=False) if isinstance(test, pd.DataFrame) else test
     val_values = val.to_numpy(copy=False) if isinstance(val, pd.DataFrame) else val
+    test_values = test.to_numpy(copy=False) if isinstance(test, pd.DataFrame) else test
 
     # Scale training set and apply scaling on test and validation set
     # Using chunked processing to minimize RAM spikes
@@ -320,15 +320,15 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     
     # Transform all sets
     train_scaled = scaler.transform(train_values)
-    test_scaled = scaler.transform(test_values)
     val_scaled = scaler.transform(val_values)
+    test_scaled = scaler.transform(test_values)
     
     # Explicitly free intermediate large arrays to reclaim memory
-    del train_values, test_values, val_values, train, test, val
+    del train_values, val_values, test_values, train, val, test
     
     print("Scaled columns")
 
-    return train_scaled, test_scaled, val_scaled, scaler, column_names
+    return train_scaled, val_scaled, test_scaled, scaler, column_names
 
 def save_preprepared_data(resource:str, train_scaled, test_scaled, val_scaled, scaler, column_names, prints:bool = False):
     output_dir = os.path.join(os.getcwd(), "train_values")

@@ -97,19 +97,19 @@ def test(dataloader, model, loss_fn, device, prints=False):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
-    test_loss = 0
+    val_loss = 0
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device), y.to(device)
             pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-    test_loss /= num_batches
+            val_loss += loss_fn(pred, y).item()
+    val_loss /= num_batches
     if prints:
-        print(f"Test Error: \n Avg loss: {test_loss:>8f} \n")
+        print(f"Test Error: \n Avg loss: {val_loss:>8f} \n")
         
-    return test_loss
+    return val_loss
     
-def objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False):
+def objective_initializer(train_scaled, val_scaled, column_names, scaling, prints=False):
     def objective(trial):
         set_random_seed(RANDOM_SEED)
 
@@ -136,7 +136,7 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
         
         # Convert to tensors if not already
         train_tensor = torch.tensor(train_scaled, dtype=torch.float32)
-        test_tensor = torch.tensor(test_scaled, dtype=torch.float32)
+        val_tensor = torch.tensor(val_scaled, dtype=torch.float32)
         
         # Load the datasets
         dataset_train = TensorDataset(train_tensor, train_tensor)
@@ -148,8 +148,8 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
             generator=train_generator
         )
         
-        dataset_test = TensorDataset(test_tensor, test_tensor)
-        test_dataloader = DataLoader(
+        dataset_test = TensorDataset(val_tensor, val_tensor)
+        val_dataloader = DataLoader(
             dataset_test,
             batch_size=batch_size,
             shuffle=False
@@ -164,7 +164,7 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
         
         for epoch in range(epochs):
             train_batch(train_dataloader, model, loss_fn, optimizer, device, prints=False)
-            current_loss = test(test_dataloader, model, loss_fn, device, prints=False)
+            current_loss = test(val_dataloader, model, loss_fn, device, prints=False)
             
             # Early stopping logic
             if best_loss is None or current_loss < best_loss - delta:
@@ -176,12 +176,12 @@ def objective_initializer(train_scaled, test_scaled, column_names, scaling, prin
             if no_improvement_count >= patience:
                 break
             
-        test_loss = test(test_dataloader, model, loss_fn, device, prints=False)
-        return test_loss
+        val_loss = test(val_dataloader, model, loss_fn, device, prints=False)
+        return val_loss
         
     return objective
 
-def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resource: str, prints:bool = False):
+def train_AE(train_scaled, val_scaled, column_names, scaling, parameters, resource: str, prints:bool = False):
     set_random_seed(RANDOM_SEED)
 
     # set the device to train on
@@ -212,7 +212,7 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     
     # Convert to tensors if not already
     train_scaled = torch.tensor(train_scaled, dtype=torch.float32)
-    test_scaled = torch.tensor(test_scaled, dtype=torch.float32)
+    val_scaled = torch.tensor(val_scaled, dtype=torch.float32)
     
     # Load the dataset
     dataset_train = TensorDataset(train_scaled, train_scaled)
@@ -224,8 +224,8 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
         generator=train_generator
     )
     
-    dataset_test = TensorDataset(test_scaled, test_scaled)
-    test_dataloader = DataLoader(
+    dataset_test = TensorDataset(val_scaled, val_scaled)
+    val_dataloader = DataLoader(
         dataset_test,
         batch_size=batch_size,
         shuffle=False
@@ -241,7 +241,7 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     
     for epoch in range(epochs):
         train_batch(train_dataloader, model, loss_fn, optimizer, device, prints=False)
-        current_loss = test(test_dataloader, model, loss_fn, device, prints=False)
+        current_loss = test(val_dataloader, model, loss_fn, device, prints=False)
         loss_history.append(current_loss)
         
         # Early stopping logic
@@ -276,7 +276,7 @@ def train_AE(train_scaled, test_scaled, column_names, scaling, parameters, resou
     
     return model_path
             
-def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, resource: str, tune_hyperparameters: bool = False):
+def create_AE(train_scaled, val_scaled, test_scaled, scaling, column_names, resource: str, tune_hyperparameters: bool = False):
     print("Current accelerator:", torch.accelerator.current_accelerator())
     print("Accelerator available:", torch.accelerator.is_available())
     
@@ -288,7 +288,7 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
         # Hyperparameter tuning with Optuna
         sampler = optuna.samplers.TPESampler(seed=RANDOM_SEED)
         study = optuna.create_study(direction="minimize", sampler=sampler)
-        study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
+        study.optimize(objective_initializer(train_scaled, val_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
         best_params = study.best_params
         print("Best hyperparameters:", best_params)
         
@@ -304,7 +304,7 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
             print(f"Hyperparameters file not found at {hyperparams_file}. Running Optuna tuning...")
             sampler = optuna.samplers.TPESampler(seed=RANDOM_SEED)
             study = optuna.create_study(direction="minimize", sampler=sampler)
-            study.optimize(objective_initializer(train_scaled, test_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
+            study.optimize(objective_initializer(train_scaled, val_scaled, column_names, scaling, prints=False), n_trials=16, n_jobs=1)
             best_params = study.best_params
             print("Best hyperparameters:", best_params)
             
@@ -312,7 +312,7 @@ def create_AE(train_scaled, test_scaled, val_scaled, scaling, column_names, reso
             np.save(hyperparams_file, best_params)
     
     # Train the model with the best hyperparameters
-    return train_AE(train_scaled, test_scaled, column_names, scaling, best_params, resource, prints=True)
+    return train_AE(train_scaled, val_scaled, column_names, scaling, best_params, resource, prints=True)
     
 if __name__ == "__main__":
     pass

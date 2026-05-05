@@ -14,6 +14,7 @@ import json
 import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+import matplotlib.pyplot as plt
 
 STORE = True
 RANDOM_SEED = 42
@@ -114,22 +115,22 @@ if __name__ == "__main__":
     for resource in resources:
         # Get the data
         print(f"Performing Anomaly detection on resource {resource}...\n\n" + ("Loading preprepared data...\n" if reread_prepared_data else "Reading and preparing data...\n"))
-        train_scaled, test_scaled, val_scaled, scaling, column_names = read_and_prepare_data(resource, load_preprepared=reread_prepared_data, prints=False)
+        train_scaled, val_scaled, test_scaled, scaling, column_names = read_and_prepare_data(resource, load_preprepared=reread_prepared_data, prints=False)
         
-        val_anomalous, anomalous_values, anomaly_types = add_synthetic_anomalies(val_scaled, train_scaled, test_scaled, column_names)
+        test_anomalous, anomalous_values, anomaly_types = add_synthetic_anomalies(test_scaled, train_scaled, val_scaled, column_names)
         
         # Perform anomaly detection on the data
         print("Performing anomaly detection on the data...\n")
-        detected_rows, reconstructions, threshold = detect_anomalies(train_scaled, test_scaled, val_anomalous, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning, prints=True, val_scaled=val_scaled)
+        detected_rows, reconstructions, threshold = detect_anomalies(train_scaled, val_scaled, test_anomalous, scaling, column_names, resource, train_model=retrain_AE, redo_hyperparameter_tuning=redo_hyperparameter_tuning, prints=True, test_scaled=test_scaled)
         
         # Perform anomaly detection on the data using baseline models for comparison
         print("Performing anomaly detection using baseline techniques...\n")
-        if_detected_rows = detect_using_isolation_forest(train_scaled, test_scaled, val_anomalous, scaling, column_names, prints=True)
-        svm_detected_rows = detect_using_one_class_support_vector_machine(train_scaled, val_anomalous, val_scaled, scaling, column_names, prints=True)
+        if_detected_rows = detect_using_isolation_forest(train_scaled, val_scaled, test_anomalous, scaling, column_names, prints=True)
+        svm_detected_rows = detect_using_one_class_support_vector_machine(train_scaled, test_anomalous, test_scaled, scaling, column_names, prints=True)
         
         all_results[resource] = {
             "train_scaled": train_scaled,
-            "val_anomalous": val_anomalous,                 
+            "test_anomalous": test_anomalous,                 
             "anomalous_values": anomalous_values,       # Dict with row as id and the value is a numpy array containing the anomalous column-IDs    
             "ae_detected": detected_rows,               
             "if_detected": if_detected_rows,
@@ -155,7 +156,7 @@ if __name__ == "__main__":
         for resource, data in all_results.items():
             anomalous_values = data["anomalous_values"]
             train_rows = len(data["train_scaled"])
-            val_rows = len(data["val_anomalous"])
+            test_rows = len(data["test_anomalous"])
             detected_rows = data[method_key]
             
             detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
@@ -167,7 +168,7 @@ if __name__ == "__main__":
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
             
-            results_table.append([resource, train_rows, val_rows, f"{precision:.3f}", f"{recall:.3f}", f"{f1:.3f}"])
+            results_table.append([resource, train_rows, test_rows, f"{precision:.3f}", f"{recall:.3f}", f"{f1:.3f}"])
         
         results_headers = ["Resource", "Train Rows", "Val Rows", "Precision", "Recall", "F1-Score"]
         print(tabulate.tabulate(results_table, headers=results_headers))
@@ -314,7 +315,7 @@ if __name__ == "__main__":
             pd.DataFrame(per_row_anomaly_table, columns=per_row_anomaly_headers).to_excel(method_output_path, index=False)
 
     # Show raw confusion-matrix counts side by side across methods.
-    total_val_rows = sum(len(data["val_anomalous"]) for data in all_results.values())
+    total_test_rows = sum(len(data["test_anomalous"]) for data in all_results.values())
     confusion_counts = {"TP": {}, "FP": {}, "TN": {}, "FN": {}}
     confusion_headers = ["Count", "Autoencoder", "Isolation Forest", "SVM"]
     confusion_output_path = os.path.join(tables_dir, "combined_confusion_matrix_counts.xlsx")
@@ -349,7 +350,7 @@ if __name__ == "__main__":
             total_fp += sum(1 for row_id in detected_set if row_id not in anomalous_values)
             total_fn += sum(1 for row_id in anomalous_values.keys() if row_id not in detected_set)
 
-        total_tn = total_val_rows - total_tp - total_fp - total_fn
+        total_tn = total_test_rows - total_tp - total_fp - total_fn
         confusion_counts["TP"][method_name] = total_tp
         confusion_counts["FP"][method_name] = total_fp
         confusion_counts["TN"][method_name] = total_tn
@@ -456,7 +457,7 @@ if __name__ == "__main__":
     event_fn = defaultdict(int)
 
     for resource, data in all_results.items():
-        val_rows = data["val_anomalous"]
+        test_rows = data["test_anomalous"]
         column_names = data["column_names"]
         anomalous_values = data["anomalous_values"]
         detected_rows = data["ae_detected"]
@@ -464,8 +465,8 @@ if __name__ == "__main__":
         event_columns = extract_event_column_indices(column_names)
         detected_set = set(detected_rows) if not isinstance(detected_rows, dict) else set(detected_rows.keys())
 
-        for row_id in range(len(val_rows)):
-            event_name = get_event_for_row(val_rows[row_id], event_columns)
+        for row_id in range(len(test_rows)):
+            event_name = get_event_for_row(test_rows[row_id], event_columns)
             event_row_count[event_name] += 1
             is_actual_anomaly = row_id in anomalous_values
             is_detected_anomaly = row_id in detected_set
@@ -535,22 +536,22 @@ if __name__ == "__main__":
         }
 
         def _build_example(row_id, resource_data):
-            val_rows_reversed = resource_data["_val_rows_reversed"]
+            test_rows_reversed = resource_data["_test_rows_reversed"]
             reconstructions_reversed = resource_data["_reconstructions_reversed"]
-            val_rows_scaled = resource_data["_val_rows_scaled"]
+            test_rows_scaled = resource_data["_test_rows_scaled"]
             reconstructions_scaled = resource_data["_reconstructions_scaled"]
 
             is_actual_anomaly = row_id in resource_data["anomalous_values"]
-            clean_original_reversed = resource_data["_val_scaled_clean_reversed"][row_id] if is_actual_anomaly else None
+            clean_original_reversed = resource_data["_test_scaled_clean_reversed"][row_id] if is_actual_anomaly else None
 
-            row_loss = float(np.mean((val_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2))
-            per_column_loss = (val_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2
+            row_loss = float(np.mean((test_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2))
+            per_column_loss = (test_rows_scaled[row_id] - reconstructions_scaled[row_id]) ** 2
 
             return {
                 "resource": example_resource,
                 "row_id": row_id,
-                "original": val_rows_reversed[row_id],  # input row (possibly anomalous)
-                "clean_original": clean_original_reversed,  # from val_scaled (only for actual anomalies)
+                "original": test_rows_reversed[row_id],  # input row (possibly anomalous)
+                "clean_original": clean_original_reversed,  # from test_scaled (only for actual anomalies)
                 "reconstruction": reconstructions_reversed[row_id],
                 "column_names": resource_data["column_names"],
                 "anomaly_columns": list(resource_data["anomalous_values"].get(row_id, [])),
@@ -562,9 +563,9 @@ if __name__ == "__main__":
 
         # Precompute arrays only for ov_1
         resource_scaling = data["scaling"]
-        data["_val_rows_scaled"] = to_numpy_2d(data["val_anomalous"])
+        data["_test_rows_scaled"] = to_numpy_2d(data["test_anomalous"])
         data["_reconstructions_scaled"] = to_numpy_2d(data["ae_reconstructions"])
-        data["_val_rows_reversed"] = resource_scaling.inverse_transform(data["_val_rows_scaled"])
+        data["_test_rows_reversed"] = resource_scaling.inverse_transform(data["_test_rows_scaled"])
         data["_reconstructions_reversed"] = resource_scaling.inverse_transform(data["_reconstructions_scaled"])
         train_rows_scaled = to_numpy_2d(data["train_scaled"])
         train_rows_reversed = resource_scaling.inverse_transform(train_rows_scaled)
@@ -582,11 +583,11 @@ if __name__ == "__main__":
             "median_per_feature": [float(v) for v in np.asarray(scaling_median)],
         }
 
-        # Load clean validation rows (val_scaled) for "original data" comparison
-        _, _, val_scaled_clean, _, _ = read_and_prepare_data(example_resource, load_preprepared=reread_prepared_data, prints=False)
-        data["_val_scaled_clean_reversed"] = resource_scaling.inverse_transform(to_numpy_2d(val_scaled_clean))
+        # Load clean validation rows (test_scaled) for "original data" comparison
+        _, _, test_scaled_clean, _, _ = read_and_prepare_data(example_resource, load_preprepared=reread_prepared_data, prints=False)
+        data["_test_scaled_clean_reversed"] = resource_scaling.inverse_transform(to_numpy_2d(test_scaled_clean))
 
-        val_rows = data["val_anomalous"]
+        test_rows = data["test_anomalous"]
         anomalous_values = data["anomalous_values"]
         anomaly_types = data["anomaly_types"]
         detected_rows = data["ae_detected"]
@@ -600,7 +601,7 @@ if __name__ == "__main__":
         fp_candidates = []
         tn_candidates = []
 
-        for row_id in range(len(val_rows)):
+        for row_id in range(len(test_rows)):
             is_actual_anomaly = row_id in anomalous_values
             is_detected_anomaly = row_id in detected_set
 
@@ -665,7 +666,7 @@ if __name__ == "__main__":
                     f"{column_loss:.6f}",
                 ])
 
-            print(tabulate.tabulate(comparison, headers=["Column", "Input (Val Anomalous)", "Original (val_scaled)", "Reconstruction", "Loss (MSE)"]))
+            print(tabulate.tabulate(comparison, headers=["Column", "Input (Val Anomalous)", "Original (test_scaled)", "Reconstruction", "Loss (MSE)"]))
 
         def _slug(text):
             return re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(text)).strip("_") or "unknown"
@@ -700,8 +701,8 @@ if __name__ == "__main__":
                     "column_index": col_idx,
                     "column_name": str(col_name),
                     "is_anomaly_column": col_idx in anomaly_col_set,
-                    "input_val_anomalous": float(example["original"][col_idx]),
-                    "original_val_scaled": float(example["clean_original"][col_idx]) if example["clean_original"] is not None else None,
+                    "input_test_anomalous": float(example["original"][col_idx]),
+                    "original_test_scaled": float(example["clean_original"][col_idx]) if example["clean_original"] is not None else None,
                     "reconstruction": float(example["reconstruction"][col_idx]),
                     "loss_mse": float(example["per_column_loss"][col_idx]),
                 })
@@ -718,8 +719,8 @@ if __name__ == "__main__":
                 "anomaly_columns_indices": [int(i) for i in example["anomaly_columns"]],
                 "anomaly_columns_names": anomaly_col_names,
                 "column_names": [str(c) for c in example["column_names"]],
-                "input_row_val_anomalous": _to_serializable(example["original"]),
-                "original_row_val_scaled_clean": _to_serializable(example["clean_original"]) if example["clean_original"] is not None else None,
+                "input_row_test_anomalous": _to_serializable(example["original"]),
+                "original_row_test_scaled_clean": _to_serializable(example["clean_original"]) if example["clean_original"] is not None else None,
                 "reconstruction_row": _to_serializable(example["reconstruction"]),
                 "per_column_details": per_column,
             }
@@ -833,11 +834,11 @@ if __name__ == "__main__":
             print(f"\nStored reconstruction examples in '{examples_dir}'")
 
         # Cleanup temporary cached arrays
-        data.pop("_val_rows_scaled", None)
+        data.pop("_test_rows_scaled", None)
         data.pop("_reconstructions_scaled", None)
-        data.pop("_val_rows_reversed", None)
+        data.pop("_test_rows_reversed", None)
         data.pop("_reconstructions_reversed", None)
-        data.pop("_val_scaled_clean_reversed", None)
+        data.pop("_test_scaled_clean_reversed", None)
             
             
     # Perform anomaly detection on the original (clean) oven validation set.
@@ -849,7 +850,7 @@ if __name__ == "__main__":
     if oven_resource not in all_results:
         print(f"Resource '{oven_resource}' was not selected. Skipping clean oven validation analysis.")
     else:
-        oven_train_scaled, oven_test_scaled, oven_val_scaled_clean, oven_scaling, oven_column_names = read_and_prepare_data(
+        oven_train_scaled, oven_val_scaled, oven_test_scaled_clean, oven_scaling, oven_column_names = read_and_prepare_data(
             oven_resource,
             load_preprepared=reread_prepared_data,
             prints=False,
@@ -858,51 +859,51 @@ if __name__ == "__main__":
         # Autoencoder on clean validation set (no synthetic anomalies)
         oven_clean_detected_rows, oven_clean_reconstructions, oven_clean_threshold = detect_anomalies(
             oven_train_scaled,
-            oven_test_scaled,
-            oven_val_scaled_clean,
+            oven_val_scaled,
+            oven_test_scaled_clean,
             oven_scaling,
             oven_column_names,
             oven_resource,
             train_model=False,
             redo_hyperparameter_tuning=False,
             prints=False,
-            val_scaled=oven_val_scaled_clean,
+            test_scaled=oven_test_scaled_clean,
         )
 
         # Baselines on clean validation set
         oven_clean_if_rows = detect_using_isolation_forest(
             oven_train_scaled,
-            oven_test_scaled,
-            oven_val_scaled_clean,
+            oven_val_scaled,
+            oven_test_scaled_clean,
             oven_scaling,
             oven_column_names,
             prints=False,
         )
         oven_clean_svm_rows = detect_using_one_class_support_vector_machine(
             oven_train_scaled,
-            oven_val_scaled_clean,
-            oven_val_scaled_clean,
+            oven_test_scaled_clean,
+            oven_test_scaled_clean,
             oven_scaling,
             oven_column_names,
             prints=False,
         )
 
-        total_clean_rows = len(oven_val_scaled_clean)
+        total_clean_rows = len(oven_test_scaled_clean)
 
         ae_detected_set = set(oven_clean_detected_rows) if not isinstance(oven_clean_detected_rows, dict) else set(oven_clean_detected_rows.keys())
         if_detected_set = set(oven_clean_if_rows) if not isinstance(oven_clean_if_rows, dict) else set(oven_clean_if_rows.keys())
         svm_detected_set = set(oven_clean_svm_rows) if not isinstance(oven_clean_svm_rows, dict) else set(oven_clean_svm_rows.keys())
 
         # Per-event anomaly counts for oven 1 using AE detections on the original clean validation set.
-        oven_val_np_for_events = to_numpy_2d(oven_val_scaled_clean)
-        oven_val_unscaled_for_events = np.asarray(oven_scaling.inverse_transform(oven_val_np_for_events))
+        oven_test_np_for_events = to_numpy_2d(oven_test_scaled_clean)
+        oven_test_unscaled_for_events = np.asarray(oven_scaling.inverse_transform(oven_test_np_for_events))
         event_columns = extract_event_column_indices(oven_column_names)
         if event_columns:
             all_event_counts = defaultdict(int)
             anomaly_event_counts = defaultdict(int)
 
-            for row_id in range(len(oven_val_unscaled_for_events)):
-                event_name = get_event_for_row(oven_val_unscaled_for_events[row_id], event_columns)
+            for row_id in range(len(oven_test_unscaled_for_events)):
+                event_name = get_event_for_row(oven_test_unscaled_for_events[row_id], event_columns)
                 all_event_counts[event_name] += 1
                 if row_id in ae_detected_set:
                     anomaly_event_counts[event_name] += 1
@@ -928,9 +929,9 @@ if __name__ == "__main__":
         print(f"Resource: {oven_resource}")
         print(tabulate.tabulate(clean_counts_table, headers=clean_counts_headers))
 
-        oven_val_np = to_numpy_2d(oven_val_scaled_clean)
+        oven_test_np = to_numpy_2d(oven_test_scaled_clean)
         oven_recon_np = to_numpy_2d(oven_clean_reconstructions)
-        oven_row_losses = np.mean((oven_val_np - oven_recon_np) ** 2, axis=1)
+        oven_row_losses = np.mean((oven_test_np - oven_recon_np) ** 2, axis=1)
 
         loss_metrics = [
             ["Rows", total_clean_rows],
@@ -952,16 +953,16 @@ if __name__ == "__main__":
             print(tabulate.tabulate(top_rows_table, headers=["Row ID", "Row MSE", "Detected as Anomaly"]))
 
         if STORE:
-            clean_counts_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_val_anomaly_counts.xlsx")
+            clean_counts_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_test_anomaly_counts.xlsx")
             pd.DataFrame(clean_counts_table, columns=clean_counts_headers).to_excel(clean_counts_output_path, index=False)
 
-            clean_loss_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_val_ae_loss_metrics.xlsx")
+            clean_loss_output_path = os.path.join(tables_dir, f"{oven_resource}_clean_test_ae_loss_metrics.xlsx")
             pd.DataFrame(loss_metrics, columns=["Metric", "Value"]).to_excel(clean_loss_output_path, index=False)
 
             # Store reconstrucytion example for every row detected as anomalous by AE.
             clean_examples_dir = os.path.join(
                 tables_dir,
-                f"{oven_resource}_clean_val_anomalous_reconstruction_examples",
+                f"{oven_resource}_clean_test_anomalous_reconstruction_examples",
             )
             os.makedirs(clean_examples_dir, exist_ok=True)
 
@@ -969,7 +970,7 @@ if __name__ == "__main__":
                 if row_id < 0 or row_id >= len(oven_row_losses):
                     continue
 
-                row_input = oven_val_np[row_id]
+                row_input = oven_test_np[row_id]
                 row_reconstruction = oven_recon_np[row_id]
                 row_input_unscaled = np.asarray(
                     oven_scaling.inverse_transform(np.asarray(row_input).reshape(1, -1))
@@ -985,7 +986,7 @@ if __name__ == "__main__":
                     per_column_details.append({
                         "column_index": int(col_idx),
                         "column_name": str(col_name),
-                        "input_val_unscaled": float(row_input_unscaled[col_idx]),
+                        "input_test_unscaled": float(row_input_unscaled[col_idx]),
                         "reconstruction_unscaled": float(row_reconstruction_unscaled[col_idx]),
                         "loss_mse": float(per_column_loss_scaled[col_idx]),
                     })
@@ -998,7 +999,7 @@ if __name__ == "__main__":
                     "row_loss_mse_unscaled": float(np.mean((row_input_unscaled - row_reconstruction_unscaled) ** 2)),
                     "autoencoder_threshold": float(oven_clean_threshold),
                     "column_names": [str(c) for c in oven_column_names],
-                    "input_row_val_unscaled": [float(v) for v in row_input_unscaled],
+                    "input_row_test_unscaled": [float(v) for v in row_input_unscaled],
                     "reconstruction_row_unscaled": [float(v) for v in row_reconstruction_unscaled],
                     "per_column_details": per_column_details,
                 }
@@ -1117,7 +1118,57 @@ if __name__ == "__main__":
             if STORE:
                 hyperparams_output_path = os.path.join(tables_dir, "hyperparameters.xlsx")
                 pd.DataFrame(table_rows, columns=headers).to_excel(hyperparams_output_path, index=False)
+
+    # Load and display loss history figures
+    loss_history_dir = "loss_history"
+    
+    if os.path.exists(loss_history_dir):
+        print(f"\n{'='*60}")
+        print("Loss History Visualization")
+        print(f"{'='*60}\n")
+        
+        loss_files = [f for f in os.listdir(loss_history_dir) if f.endswith("_loss_history.npy")]
+        
+        if loss_files:
+            # Create individual figures for each resource
+            for loss_file in loss_files:
+                resource_id = loss_file.replace("_loss_history.npy", "")
+                loss_path = os.path.join(loss_history_dir, loss_file)
+                loss_values = np.load(loss_path, allow_pickle=True)
+                
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.plot(loss_values, linewidth=2)
+                ax.set_xlabel("Epoch", fontsize=12)
+                ax.set_ylabel("Loss", fontsize=12)
+                ax.set_title(f"Loss History - {resource_id}", fontsize=14, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                
+                output_file = os.path.join(loss_history_dir, f"{resource_id}_loss_history.png")
+                fig.savefig(output_file, dpi=150, bbox_inches='tight')
+                plt.close(fig)
+                print(f"Saved loss history figure for {resource_id}")
+            
+            # Create combined figure with all resources
+            fig, ax = plt.subplots(figsize=(14, 8))
+            
+            for loss_file in loss_files:
+                resource_id = loss_file.replace("_loss_history.npy", "")
+                loss_path = os.path.join(loss_history_dir, loss_file)
+                loss_values = np.load(loss_path, allow_pickle=True)
+                ax.plot(loss_values, label=resource_id, linewidth=2)
+            
+            ax.set_xlabel("Epoch", fontsize=12)
+            ax.set_ylabel("Loss", fontsize=12)
+            ax.set_title("Combined Loss History - All Resources", fontsize=14, fontweight='bold')
+            ax.legend(fontsize=10, loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            combined_output_file = os.path.join(loss_history_dir, "combined_loss_history.png")
+            fig.savefig(combined_output_file, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            print(f"Saved combined loss history figure")
+
                 
                 
                 
- 
+    
