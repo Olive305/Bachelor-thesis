@@ -130,6 +130,7 @@ if __name__ == "__main__":
         
         all_results[resource] = {
             "train_scaled": train_scaled,
+            "val_scaled": val_scaled,
             "test_anomalous": test_anomalous,                 
             "anomalous_values": anomalous_values,       # Dict with row as id and the value is a numpy array containing the anomalous column-IDs    
             "ae_detected": detected_rows,               
@@ -1169,6 +1170,97 @@ if __name__ == "__main__":
             print(f"Saved combined loss history figure")
 
                 
-                
+    # Generalization Analysis - Train vs Test Error Distribution
+    print(f"\n{'='*60}")
+    print("Generalization Analysis: Train vs Test Error Distribution")
+    print(f"{'='*60}\n")
+    
+    for resource, data in all_results.items():
+        # Get the model for this resource
+        train_scaled = data["train_scaled"]
+        val_scaled = data["val_scaled"]
+        test_anomalous = data["test_anomalous"]
+        reconstructions = data["ae_reconstructions"]
+        
+        # Convert to 2D numpy arrays for sklearn compatibility
+        train_np = to_numpy_2d(train_scaled)
+        val_np = to_numpy_2d(val_scaled)
+        test_np = to_numpy_2d(test_anomalous)
+        recon_np = to_numpy_2d(reconstructions)
+
+        # Reconstruct the original train/validation sets using the already available model pipeline.
+        _, train_reconstructions, _ = detect_anomalies(
+            train_scaled,
+            val_scaled,
+            train_scaled,
+            data["scaling"],
+            data["column_names"],
+            resource,
+            train_model=False,
+            redo_hyperparameter_tuning=False,
+            prints=False,
+            test_scaled=train_scaled,
+        )
+        _, val_reconstructions, _ = detect_anomalies(
+            train_scaled,
+            val_scaled,
+            val_scaled,
+            data["scaling"],
+            data["column_names"],
+            resource,
+            train_model=False,
+            redo_hyperparameter_tuning=False,
+            prints=False,
+            test_scaled=val_scaled,
+        )
+
+        train_recon_np = to_numpy_2d(train_reconstructions)
+        val_recon_np = to_numpy_2d(val_reconstructions)
+        
+        # Compute reconstruction errors (MSE per row)
+        train_errors = np.mean((train_np - train_recon_np) ** 2, axis=1)
+        val_errors = np.mean((val_np - val_recon_np) ** 2, axis=1)
+        test_errors = np.mean((test_np - recon_np) ** 2, axis=1)
+        
+        # Plot histograms
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        axes[0].hist(train_errors, bins=30, alpha=0.7, edgecolor='black')
+        axes[0].set_title(f'{resource}: Train Errors')
+        axes[0].set_xlabel('Reconstruction Error (MSE)')
+        axes[0].set_ylabel('Frequency')
+        axes[0].axvline(np.mean(train_errors), color='r', linestyle='--', label='Mean')
+        axes[0].legend()
+        
+        axes[1].hist(val_errors, bins=30, alpha=0.7, color='orange', edgecolor='black')
+        axes[1].set_title(f'{resource}: Validation Errors')
+        axes[1].set_xlabel('Reconstruction Error (MSE)')
+        axes[1].set_ylabel('Frequency')
+        axes[1].axvline(np.mean(val_errors), color='r', linestyle='--', label='Mean')
+        axes[1].legend()
+        
+        axes[2].hist(test_errors, bins=30, alpha=0.7, color='green', edgecolor='black')
+        axes[2].set_title(f'{resource}: Test Errors')
+        axes[2].set_xlabel('Reconstruction Error (MSE)')
+        axes[2].set_ylabel('Frequency')
+        axes[2].axvline(np.mean(test_errors), color='r', linestyle='--', label='Mean')
+        axes[2].legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Print statistics
+        stats_table = [
+            ["Train", f"{np.mean(train_errors):.6f}", f"{np.std(train_errors):.6f}", 
+             f"{np.median(train_errors):.6f}", f"{np.percentile(train_errors, 95):.6f}"],
+            ["Validation", f"{np.mean(val_errors):.6f}", f"{np.std(val_errors):.6f}",
+             f"{np.median(val_errors):.6f}", f"{np.percentile(val_errors, 95):.6f}"],
+            ["Test", f"{np.mean(test_errors):.6f}", f"{np.std(test_errors):.6f}",
+             f"{np.median(test_errors):.6f}", f"{np.percentile(test_errors, 95):.6f}"],
+        ]
+        
+        print(f"Resource: {resource}")
+        print(tabulate.tabulate(stats_table, headers=["Dataset", "Mean", "Std", "Median", "95th %ile"]))
+        print()
                 
     
