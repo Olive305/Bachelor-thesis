@@ -5,7 +5,7 @@
   "anomaly_type": "UNKNOWN_TYPE",
   "is_actual_anomaly": false,
   "row_loss_mse_scaled": 0.03774804010062843,
-  "autoencoder_threshold": 0.8003188967704773,
+  "autoencoder_threshold": 0.6763246059417725,
   "z_normalization_scaling": {
     "feature_names": [
       "http://iot.uni-trier.de/FTOnto#OV_1_http://iot.uni-trier.de/StreamDataAnnotationOnto#OV_1_Property_Current_Task_Elapsed_Seconds_Since_Start",

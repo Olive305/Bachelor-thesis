@@ -13,7 +13,37 @@ RANDOM_SEED = 42
 np.random.seed(RANDOM_SEED)
 
 
-def detect_anomalies(train_scaled, val_scaled, test_anomalous, scaling, column_names, resource, train_model: bool = False, redo_hyperparameter_tuning:bool = False, prints: bool = False, threshold_percentile: float = 99.5, test_scaled=None):
+def _labels_from_anomalies(n_rows, anomalous_values):
+    labels = np.zeros(int(n_rows), dtype=int)
+    if not anomalous_values:
+        return labels
+    for row_id in anomalous_values.keys():
+        try:
+            idx = int(row_id)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= idx < n_rows:
+            labels[idx] = 1
+    return labels
+
+
+def detect_anomalies(
+    train_scaled,
+    val_scaled,
+    test_anomalous,
+    scaling,
+    column_names,
+    resource,
+    train_model: bool = False,
+    redo_hyperparameter_tuning: bool = False,
+    prints: bool = False,
+    threshold_percentile: float = 99.5,
+    test_scaled=None,
+    anomalous_values=None,
+    optimize_percentile: bool = False,
+    percentile_candidates=None,
+    return_percentile: bool = False,
+):
     
     # Train the model, if training is required or if the file doesnt exist
     if train_model or not os.path.exists(os.path.join("model", resource + "_autoencoder.pth")):
@@ -38,23 +68,97 @@ def detect_anomalies(train_scaled, val_scaled, test_anomalous, scaling, column_n
     
     train_tensor = torch.tensor(train_scaled, dtype=torch.float32).to(device)
 
-    # Set the threshold as a percentile of the per-sample training losses
+    # Compute per-sample training losses for threshold selection.
     with torch.no_grad():
         train_reconstructed = model(train_tensor)
         train_losses = torch.mean((train_reconstructed - train_tensor) ** 2, dim=1).cpu().numpy()
-    threshold = np.percentile(train_losses, threshold_percentile)
     
     test_anomalous_tensor = torch.tensor(test_anomalous, dtype=torch.float32).to(device)
 
-    # Calculate the loss on the modified test set per sample
+    # Calculate the loss on the modified test set per sample.
     model.eval()
     with torch.no_grad():
         reconstructed = model(test_anomalous_tensor)
         losses = torch.mean((reconstructed - test_anomalous_tensor) ** 2, dim=1).cpu().numpy()  # Calculate per-sample loss
 
+    used_percentile = threshold_percentile
+    if optimize_percentile:
+        if anomalous_values is None:
+            if prints:
+                print("Warning: optimize_percentile=True but anomalous_values is None; using default threshold_percentile.")
+            threshold = np.percentile(train_losses, threshold_percentile)
+        else:
+            if percentile_candidates is None:
+                percentile_candidates = np.linspace(90.0, 99.9, 20)
+
+            labels = _labels_from_anomalies(len(losses), anomalous_values)
+            total_anomalies = int(labels.sum())
+            if total_anomalies == 0:
+                if prints:
+                    print("Warning: No anomalies provided for percentile optimization; using default threshold_percentile.")
+                threshold = np.percentile(train_losses, threshold_percentile)
+            else:
+                best = {
+                    "f1": -1.0,
+                    "recall": -1.0,
+                    "precision": -1.0,
+                    "percentile": None,
+                    "threshold": None,
+                }
+                for percentile in percentile_candidates:
+                    percentile = float(percentile)
+                    candidate_threshold = np.percentile(train_losses, percentile)
+                    preds = losses > candidate_threshold
+                    tp = int(labels[preds].sum())
+                    fp = int(preds.sum()) - tp
+                    fn = total_anomalies - tp
+
+                    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+                    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                    f1 = (
+                        2 * precision * recall / (precision + recall)
+                        if (precision + recall) > 0
+                        else 0.0
+                    )
+
+                    if (
+                        f1 > best["f1"]
+                        or (f1 == best["f1"] and recall > best["recall"])
+                        or (f1 == best["f1"] and recall == best["recall"] and precision > best["precision"])
+                        or (
+                            f1 == best["f1"]
+                            and recall == best["recall"]
+                            and precision == best["precision"]
+                            and (best["percentile"] is None or percentile < best["percentile"])
+                        )
+                    ):
+                        best.update(
+                            {
+                                "f1": f1,
+                                "recall": recall,
+                                "precision": precision,
+                                "percentile": percentile,
+                                "threshold": candidate_threshold,
+                            }
+                        )
+
+                used_percentile = best["percentile"]
+                threshold = best["threshold"]
+
+                if prints:
+                    print(
+                        "Auto-selected percentile "
+                        f"{used_percentile:.3f} (F1={best['f1']:.3f}, "
+                        f"P={best['precision']:.3f}, R={best['recall']:.3f})"
+                    )
+    else:
+        threshold = np.percentile(train_losses, threshold_percentile)
+
     # Detect anomalies and return their indices
     detected_anomaly_indices = np.where(losses > threshold)[0]
     
+    if return_percentile:
+        return detected_anomaly_indices, reconstructed, threshold, float(used_percentile)
     return detected_anomaly_indices, reconstructed, threshold
     
 def add_synthetic_anomalies(test_scaled, train_scaled, val_scaled, column_names):
