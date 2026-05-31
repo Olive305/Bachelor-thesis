@@ -13,7 +13,7 @@ def parse_datastream_from_event_xml(filename):
     event_xml_list = root.findall(".//xes:event", ns)
     results = []
 
-    # Pre-extract all traces and their attributes
+    # Extract all traces and their attributes
     trace_attrs_map = {}
     for trace in root.findall(".//xes:trace", ns):
         trace_attrs = {}
@@ -36,16 +36,17 @@ def parse_datastream_from_event_xml(filename):
             key = attr.attrib.get("key")
             val = attr.attrib.get("value")
             if key:
-                event_attrs[key] = val
+                event_attrs[key] = val   # Should include attributes like concept:name, org:resource, SubProcessID
 
         # Get trace attributes for this event
         trace_id = int(event_xml.attrib.get("_trace_id", "0"))
         trace_attrs = trace_attrs_map.get(trace_id, {})
 
-        # Merge trace and event attributes (trace attributes prefixed)
+        # Merge trace and event attributes to get each attribute for each value
         base = {f"trace:{k}": v for k, v in trace_attrs.items()}
         base.update(event_attrs)
 
+        # Get the sensor attibutes
         datastreams = event_xml.findall("xes:list[@key='stream:datastream']", ns)
         if not datastreams:
             continue
@@ -53,7 +54,7 @@ def parse_datastream_from_event_xml(filename):
             for idx, point in enumerate(datastream.findall("xes:list", ns)):
                 stream_ns = "https://cpee.org/datastream/datastream.xesext"
                 row = base.copy()
-                # Flatten top-level attributes
+                # Flatten attributes
                 row["stream:system"] = point.attrib.get(f"{{{stream_ns}}}system")
                 row["stream:system_type"] = point.attrib.get(f"{{{stream_ns}}}system_type")
                 row["stream:observation"] = point.attrib.get(f"{{{stream_ns}}}observation")
@@ -71,6 +72,7 @@ def parse_datastream_from_event_xml(filename):
     return results
 
 def process_file(filename, parquet_dir):
+    # Create a parquet file per subprocess file
     try:
         parquet_file = os.path.join(parquet_dir, Path(filename).stem + ".parquet")
         sensor_info = parse_datastream_from_event_xml(filename)
@@ -81,10 +83,17 @@ def process_file(filename, parquet_dir):
         return f"Error processing {filename}: {e}"
 
 if __name__ == "__main__":
-    xes_directory = Path.cwd() / "Data" / "IoT enriched event log paper" / "20130794" / "Cleaned Event Log"
+    
+    # Only runs when this file is specifically the one being run
+    
+
+    # Check if files exist
+    xes_directory = Path.cwd() / "Data" / "20130794" / "Cleaned Event Log"
     xes_files = [f for f in xes_directory.glob("*.xes") if f.name != "MainProcess.xes"]
     print(f"Found {len(xes_files)} .xes files.")
 
+
+    # Create a directory where the parquet files should be created and create parquet files in parallel
     parquet_dir = xes_directory / "parquet"
     parquet_dir.mkdir(exist_ok=True)
     

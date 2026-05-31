@@ -16,11 +16,11 @@ def parse_datastream_from_event_xml(filename):
 
     results = []
 
-    # Iterate over all <event> elements
+    # Loop over all <event> elements (so over all events)
     for event_xml in root.findall(".//xes:event", ns):
         base = {}
 
-        # Extract top-level attributes like concept:name, org:resource, SubProcessID
+        # Extract important attributes like concept:name, org:resource, SubProcessID
         for attr in event_xml.findall("xes:string", ns):
             key = attr.attrib.get("key")
             val = attr.attrib.get("value")
@@ -36,7 +36,7 @@ def parse_datastream_from_event_xml(filename):
             for idx, point in enumerate(datastream.findall("xes:list", ns)):
                 row = base.copy()
 
-                # Extract stream attributes (namespaced)
+                # Extract stream attributes
                 row["stream:system"] = point.attrib.get(f"{{{ns['stream']}}}system")
                 row["stream:system_type"] = point.attrib.get(f"{{{ns['stream']}}}system_type")
                 row["stream:observation"] = point.attrib.get(f"{{{ns['stream']}}}observation")
@@ -63,6 +63,7 @@ def parse_datastream_from_event_xml(filename):
     return results
 
 def process_file(filename, parquet_dir):
+    # Create a parquet file per subprocess file
     try:
         parquet_file = os.path.join(parquet_dir, Path(filename).stem + ".parquet")
         sensor_info = parse_datastream_from_event_xml(filename)
@@ -74,10 +75,15 @@ def process_file(filename, parquet_dir):
 
 if __name__ == "__main__":
     
-    xes_directory = Path.cwd() / "Data" / "IoT enriched event log paper" / "20130794" / "Data Quality Issues Event Log"
+    # Only runs when this file is specifically the one being run
+    
+
+    # Check if files exist    
+    xes_directory = Path.cwd() / "Data" / "20130794" / "Data Quality Issues Event Log"
     xes_files = [f for f in xes_directory.glob("*.xes") if f.name != "MainProcess.xes"]
     print(f"Found {len(xes_files)} .xes files.")
 
+    # Create a directory where the parquet files should be created and create parquet files in parallel
     parquet_dir = xes_directory / "parquet"
     parquet_dir.mkdir(exist_ok=True)
     with ProcessPoolExecutor() as executor:
@@ -107,4 +113,3 @@ if __name__ == "__main__":
             print(f"Error combining tables: {e}")
     else:
         print("No valid parquet files found to combine.")
-    
