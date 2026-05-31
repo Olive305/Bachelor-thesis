@@ -32,14 +32,14 @@ set_random_seed(RANDOM_SEED)
 
 # Defining the autoencoder
 class Autoencoder(nn.Module):
-    def __init__(self, input_dim, latent_dim, activation_func="relu", dropout_rate=0.1):
+    def __init__(self, input_dim, latent_dim, activation_func="relu", dropout_rate=0.1):  # Dropout rate and activation func was set initially for testing but will be changed in parameter tuning
         super().__init__()
         
         # Calculate sizes of the hidden layers
         h_layer_1_dim = int(2/3 * input_dim + 1/3 * latent_dim)
         h_layer_2_dim = int(1/3 * input_dim + 2/3 * latent_dim)
         
-        # Map activation function string to torch module
+        # Set the correct activation function based on the input
         activation_map = {
             "relu": nn.ReLU(),
             "tanh": nn.Tanh(),
@@ -77,25 +77,20 @@ def train_batch(dataloader, model, loss_fn, optimizer, device, prints = False):
     model.train()
     for batch, (X, y) in enumerate(dataloader):
         
-        # X == y in case of autoencoders
         X, y = X.to(device), y.to(device)
         
-        # Compute prediction error
-        pred = model(X)
-        loss = loss_fn(pred, y)
+        reconstruction = model(X)
+        loss = loss_fn(reconstruction, y)
         
-        # Backpropagation
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
         
-        # Log training informations
         if prints and batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
             
 def test(dataloader, model, loss_fn, device, prints=False):
-    size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
     val_loss = 0
@@ -106,11 +101,11 @@ def test(dataloader, model, loss_fn, device, prints=False):
             val_loss += loss_fn(pred, y).item()
     val_loss /= num_batches
     if prints:
-        print(f"Test Error: \n Avg loss: {val_loss:>8f} \n")
+        print(f"Avg loss: {val_loss:>8f} \n")
         
     return val_loss
     
-def objective_initializer(train_scaled, val_scaled, column_names, scaling, prints=False):
+def objective_initializer(train_scaled, val_scaled, column_names):
     def objective(trial):
         set_random_seed(RANDOM_SEED)
 
@@ -135,7 +130,7 @@ def objective_initializer(train_scaled, val_scaled, column_names, scaling, print
                                      lr=lr,
                                      weight_decay=l2)
         
-        # Convert to tensors if not already
+        # Convert to tensors
         train_tensor = torch.tensor(train_scaled, dtype=torch.float32)
         val_tensor = torch.tensor(val_scaled, dtype=torch.float32)
         
@@ -211,7 +206,7 @@ def train_AE(train_scaled, val_scaled, column_names, scaling, parameters, resour
                                  lr=lr,
                                  weight_decay=l2)
     
-    # Convert to tensors if not already
+    # Convert to tensors
     train_scaled = torch.tensor(train_scaled, dtype=torch.float32)
     val_scaled = torch.tensor(val_scaled, dtype=torch.float32)
     
@@ -301,7 +296,7 @@ def create_AE(train_scaled, val_scaled, test_scaled, scaling, column_names, reso
             best_params = np.load(hyperparams_file, allow_pickle=True).item()
             print("Loaded hyperparameters:", best_params)
         else:
-            # File doesn't exist, run Optuna to create hyperparameters
+            # File doesn't exist, redo hyperparameter tuning
             print(f"Hyperparameters file not found at {hyperparams_file}. Running Optuna tuning...")
             sampler = optuna.samplers.TPESampler(seed=RANDOM_SEED)
             study = optuna.create_study(direction="minimize", sampler=sampler)
