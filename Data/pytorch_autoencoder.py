@@ -1,4 +1,5 @@
 # Using code from https://docs.pytorch.org/tutorials/beginner/basics/quickstart_tutorial.html
+# Using code from https://optuna.org/#code_examples 
 
 import torch
 from torch import nn
@@ -10,8 +11,8 @@ import random
 import optuna
 import os
 
+# Random seed to ensure to always get the same outcomes
 RANDOM_SEED = 42
-
 
 def set_random_seed(seed: int = RANDOM_SEED):
     random.seed(seed)
