@@ -1,3 +1,7 @@
+# Using code from https://link.springer.com/10.1007/979-8-8688-0008-5 
+# Using code from https://www.geeksforgeeks.org/python/introduction-to-pyarrow/
+# Using code from https://docs.python.org/3/library/glob.html
+
 import os
 import xml.etree.ElementTree as ET
 from concurrent.futures import ProcessPoolExecutor, as_completed
