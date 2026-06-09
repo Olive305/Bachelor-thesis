@@ -1,8 +1,11 @@
 numpy
 pandas
 matplotlib
-seaborn
-tensorflow
 scikit-learn
 duckdb
 openpyxl
+torch
+tabulate
+pyarrow
+optuna
+pm4py

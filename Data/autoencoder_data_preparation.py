@@ -1,4 +1,6 @@
 # Using code from https://link.springer.com/10.1007/979-8-8688-0008-5 
+# Using code from https://duckdb.org/docs/current/clients/python/overview
+# Using code from https://www.geeksforgeeks.org/python/numpy-searchsorted-in-python/
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -9,21 +11,6 @@ import os
 
 
 def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
-    """
-    Read the data of one resource using duckDB
-    
-    Args: 
-        resource: The resource for which the data should be fetched
-        prints: If True, it prints further information into console
-        
-    Returns: 
-        The pandas dataframe with the (raw) data
-        
-    Raises:
-        FileNotFoundError: If the parquet file does not exist
-        ValueError: If resource is empty or invalid
-        Exception: If duckDB query fails
-    """
     
     if not resource or not isinstance(resource, str):
         raise ValueError("Resource must be a non-empty string")
@@ -39,8 +26,7 @@ def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
         # DuckDB connection
         con = duckdb.connect()
 
-        # Create a df with all the values of temperature sensors sorted by their timestamp
-        # Removed redundant GROUP BY since each row is already unique by definition
+        # Create a df with all the values of sensors sorted by their timestamp
         df = con.execute(f"""
             SELECT 
             "stream:timestamp",
@@ -65,52 +51,42 @@ def read_data(resource: str, prints: bool = False) -> pd.DataFrame:
     
 
 def detect_column_types(df):
-    """Detect and classify column types in the dataframe."""
+    # Get all column types (binary, discrete, continuous)
     cont_cols = []
     bin_cols = []
     categorial_cols = []
 
     for col in df.columns:
         
-        # Timestamps are NOT model features → ignore as early as possible
+        # Ignore timestamp values
         if "timestamp" in col:
             continue
 
         series = df[col]
         unique_vals = series.dropna().unique()
 
+        # convert to numeric as categorial values will not be converted and turned to nan (which is dropped with .dropna())
         num_vals = pd.to_numeric(pd.Series(unique_vals), errors="coerce").dropna().unique()
+        # check if binary
         if len(num_vals) > 0 and set(num_vals).issubset({0.0, 1.0}):
             bin_cols.append(col)
+        # if there are values then it can only be numeric
         elif len(num_vals) > 0:
-            # Everything else numeric = continuous
             cont_cols.append(col)
+        # if there are no values then that means, that no values were numeric and the column has to be discrete
         else:
             categorial_cols.append(col)
 
     return cont_cols, bin_cols, categorial_cols
 
 def prepare_data(df: pd.DataFrame, prints: bool = False):
-    """
-    Use data preparation on the dataframe to make it usable for the Autoencoder
-    
-    Args:
-        df: The dataframe contining the raw data
-        prints: If True, it prints further information into console
-        
-    Returns:
-        The pandas dataframe split in training, test and validation set
-        
-    Raises:
-    
-    """
-
-    # Ensure timestamp column is actual datetime objects for safe comparison with datetime.datetime
+    # Ensure timestamp column is actual datetime objects such that it can be compared with datetime.datetime
     df['stream:timestamp'] = pd.to_datetime(df['stream:timestamp'])
     
+    # We need to set a sensor which is used for the synchronization. Since the given sensor is in the biggest set of already synchronized sensors (for all resources) it will be used here
     reference_sensor = 'Current_Task_Elapsed_Seconds_Since_Start'
 
-    # Rows where sensor:id CONTAINS the reference sensor string
+    # Rows where sensor:id contain the reference sensor string
     ref = df[df["sensor:id"].str.contains(reference_sensor, case=False, na=False)].sort_values("stream:timestamp")
     
     if prints:
@@ -132,13 +108,12 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print(ref.head(10))
         print(f"Reference dataframe shape: {ref.shape}\n")
 
-    # Initialize 'wide' with the reference timestamps and the reference sensor values
+    # Initialize wide dataframe with the reference timestamps and the reference sensor values
     wide = pd.DataFrame({
         "stream:timestamp": ref["stream:timestamp"].values,
         reference_sensor_id: ref["stream:value"].values
     })
 
-    # Show the initialized wide head so you can confirm alignment before merging others
     if prints:
         print("Initialized 'wide' preview:")
         print(wide.head(10))
@@ -155,7 +130,6 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         if prints:
             print(f"  Merging sensor: {sensor_id} with {len(sensor_data)} entries")
         
-        # Vectorized merge using searchsorted - MUCH faster than Python loops
         sensor_timestamps = sensor_data["stream:timestamp"].values
         sensor_values_array = sensor_data["stream:value"].values
         wide_timestamps = wide["stream:timestamp"].values
@@ -163,20 +137,19 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         if prints:
             print(f"Searching closest timestamps for {len(wide)} entries...")
         
-        # Find indices of closest timestamps using vectorized searchsorted
+        # Find indices of closest timestamps using vectorized searchsorted (faster)
         pos_indices = np.searchsorted(sensor_timestamps, wide_timestamps)
         sensor_values = np.empty(len(wide), dtype=object)
         
-        # Vectorized approach: handle all positions at once
-        # For positions before first timestamp
+        # Handle positions before first timestamp
         first_mask = pos_indices == 0
         sensor_values[first_mask] = sensor_values_array[0]
         
-        # For positions after last timestamp
+        # Handle positions after last timestamp
         last_mask = pos_indices >= len(sensor_timestamps)
         sensor_values[last_mask] = sensor_values_array[-1]
         
-        # For positions in between - find closest
+        # Handle positions in between: find closest
         mid_mask = ~(first_mask | last_mask)
         mid_indices = np.where(mid_mask)[0]
         
@@ -202,13 +175,12 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print("Initialized 'wide' shape:", wide.shape)
         
     # Some of the sensors have 3 dimensional values given as 3 values in a list. Convert them to individual columns in the dataframe
-    # Optimized: check first value instead of applying to entire column (10-100x faster)
     cols_to_drop = []
     new_cols_dict = {}
     
     for col in wide.columns:
         if col not in ["stream:timestamp", "event"]:
-            # Check only first non-null value (much faster than .apply())
+            # Check only first non-null value (faster than using apply())
             first_val = wide[col].iloc[0] if len(wide) > 0 else None
             if isinstance(first_val, (list, tuple)) or (isinstance(first_val, str) and first_val.startswith('[')):
                 cols_to_drop.append(col)
@@ -225,7 +197,7 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
                         print(f"  Warning: Could not parse list column {col}: {str(e)}")
                 # Split list values into separate columns
                 try:
-                    # Convert each element to a list/array and expand into DataFrame
+                    # Convert each element to a list / array and expand into DataFrame
                     list_values = wide[col].apply(lambda x: list(x) if isinstance(x, (list, tuple, np.ndarray)) else eval(x) if isinstance(x, str) else x)
                     split_data = pd.DataFrame(list_values.tolist(), index=wide.index)
                     for i in range(len(split_data.columns)):
@@ -237,7 +209,7 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
                         print(f"  Error splitting column {col}: {str(e)}")
                     raise
     
-    # Apply all new columns at once (more efficient than concat)
+    # Apply all new columns at once
     if new_cols_dict:
         if prints:
             print(f"Adding {len(new_cols_dict)} new columns and dropping {len(cols_to_drop)} list columns")
@@ -259,10 +231,9 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print(num_cols)
         print("\n")
     
-    # Use sparse one-hot encoding for memory efficiency (10-100x smaller for sparse data)
+    # Use sparse one-hot encoding for memory efficiency
     if categorical_cols:
         wide = pd.get_dummies(wide, columns=categorical_cols, drop_first=True, sparse=True)
-        # Convert sparse columns to dense for compatibility with most ML models
     
     if prints:
         print("Removed 3 dimensional entries from the df and applied one hot encoding on categorial columns")
@@ -283,7 +254,7 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
         print(f"Validation set size: {len(val)}\n")
     
     # Drop timestamp columns if present
-    timestamp_cols = [col for col in train.columns if "imestamp" in col]
+    timestamp_cols = [col for col in train.columns if "imestamp" in col] # T not included so that I dont have to check for uppercase and lowercase
     if timestamp_cols:
         train = train.drop(columns=timestamp_cols)
         val = val.drop(columns=timestamp_cols)
@@ -293,14 +264,12 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     
     print("Dropped timestamp columns")
 
-    # Reduce memory footprint before scaling - use float32 throughout
-    # Note: If data is sparse, convert carefully
     if hasattr(train, 'sparse'):
         train = train.sparse.to_dense().astype("float32")
         val = val.sparse.to_dense().astype("float32")
         test = test.sparse.to_dense().astype("float32")
     else:
-        # Only convert numeric columns to float32
+        # Only convert numeric columns to float32 (shouldnt be an issue after troubleshooting but keeping it just in case)
         numeric_cols = train.select_dtypes(include=[np.number]).columns
         train[numeric_cols] = train[numeric_cols].astype("float32")
         val[numeric_cols] = val[numeric_cols].astype("float32")
@@ -312,7 +281,6 @@ def prepare_data(df: pd.DataFrame, prints: bool = False):
     test_values = test.to_numpy(copy=False) if isinstance(test, pd.DataFrame) else test
 
     # Scale training set and apply scaling on test and validation set
-    # Using chunked processing to minimize RAM spikes
     scaler = StandardScaler(copy=False)
     
     # Fit scaler on training data
@@ -382,10 +350,12 @@ def load_preprepared_data(resource:str, prints:bool = False):
     return train_scaled, test_scaled, val_scaled, scaler, column_names
 
 def read_and_prepare_data(resource: str, load_preprepared:bool = True, prints:bool = False):
+    # Load preprepared data if it exists and value is True
     if load_preprepared:
         if prints:
             print("Loading already prepared data...\n")
         try:
+            # Instantly return, since preparation steps arent necessary
             return load_preprepared_data(resource, prints=prints)
         except FileNotFoundError:
             if prints:

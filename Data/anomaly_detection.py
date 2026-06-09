@@ -68,7 +68,7 @@ def detect_anomalies(
     
     train_tensor = torch.tensor(train_scaled, dtype=torch.float32).to(device)
 
-    # Compute per-sample training losses for threshold selection.
+    # Compute per sample training losses for threshold selection.
     with torch.no_grad():
         train_reconstructed = model(train_tensor)
         train_losses = torch.mean((train_reconstructed - train_tensor) ** 2, dim=1).cpu().numpy()
@@ -81,6 +81,7 @@ def detect_anomalies(
         reconstructed = model(test_anomalous_tensor)
         losses = torch.mean((reconstructed - test_anomalous_tensor) ** 2, dim=1).cpu().numpy()  # Calculate per-sample loss
 
+    # Threshold optimization via percentile
     used_percentile = threshold_percentile
     if optimize_percentile:
         if anomalous_values is None:
@@ -220,12 +221,12 @@ def _add_context_anomalies(test_synthetic, test_scaled, train_scaled, val_scaled
             border_down = value - offset
             
             suitable_values = all_scaled[
-                (all_scaled[:, col] >= border_up) |   # Fix: select OUTSIDE the range
+                (all_scaled[:, col] >= border_up) | 
                 (all_scaled[:, col] <= border_down),
                 col
             ]
 
-            # Always exclude the exact original value as a safety net
+            # Always exclude the exact original value
             suitable_values = suitable_values[suitable_values != value]
 
             if len(suitable_values):
